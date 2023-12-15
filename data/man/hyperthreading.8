@@ -1,0 +1,177 @@
+.\" Copyright 2004 VMware, Inc.  All rights reserved.
+.\"
+.\" Print with groff -mandoc <thisfile> | lpr
+.Dd January 20, 2004
+.Dt hyperthreading 8
+.Os "VMware ESX Server" 2.1
+.Sh NAME
+.Nm Hyper-Threading
+.Nd VMware ESX Server Hyper-Threading support
+.Sh COPYRIGHT
+.if n VMware ESX Server is Copyright 2004 VMware, Inc.  All rights reserved.
+.if t VMware ESX Server is Copyright 2004 VMware, Inc.  All rights reserved.
+.Sh DESCRIPTION
+VMware ESX Server 2.1 contains special optimizations to support Intel's
+Hyper-Threading technology. While Hyper-Threading use is mainly transparent
+to the system administrator, there are additional configuration options
+for fine-grained control of hyperthreading usage. This document explains
+those settings and gives an overview of ESX Server Hyper-Threading support.
+.Pp
+.Sh HYPER-THREADING INTRODUCTION
+Hyper-Threading technology allows a single physical processor to
+behave like two logical processors, in that it can run two independent
+applications at the same time. To avoid confusion between \fIlogical\fP
+and \fIphysical\fP processors, Intel often refers to a physical processor
+as a \fIpackage,\fP and this document will adopt that term as well.
+.Pp
+While Hyper-Threading does not double the performance of a system, it
+can increase performance somewhat by better utilizing idle
+resources. In general, an application running on one logical processor
+of a busy package can expect 50-55% of the throughput that it would
+obtain while running alone on a non-hyperthreaded processor. However,
+Hyper-Thread performance improvements are highly
+application-dependent, and some applications may see performance
+degradations with Hyper-Threading, because many processor resources
+(such as the cache) are shared between both logical processors.
+.Pp
+.Sh ENABLING HYPER-THREADING
+First, ensure that your system supports Hyper-Threading
+technology. All Intel Xeon MP processors and all Intel Xeon DP
+processors with 512KB L2 cache support Hyper-Threading, however, not
+every Intel Xeon system ships with a BIOS that supports
+Hyper-Threading. Consult your system documentation to see if the BIOS
+includes Hyper-Threading support. VMware ESX Server cannot enable
+Hyper-Threading on a system with more than 8 physical CPUs, as ESX has a
+16 logical CPU limit.
+.Pp
+Next, enable Hyper-Threading in the system BIOS. Some manufacturers
+label this option "Logical Processor," while others call it "Enable
+Hyper-Threading."
+.Pp
+Finally, check the "Enable Hyper-Threading" checkbox in the Startup
+Profile section of the VMware ESX Server Management User Interface
+"Options" page. After the system is rebooted, hyperthreading will be
+enabled. The "Processors" header on the status page should now display
+twice the number of physical CPUs.
+.Pp
+.Sh UNDERSTANDING ESX SERVER HYPER-THREADING MANAGEMENT
+.Pp
+A system with hyperthreading enabled should behave almost exactly like
+a standard system. Logical processors on the same package will have
+adjacent CPU numbers, so that CPUs 0 and 1 are on the first package
+together, CPUs 2 and 3 are on the second package together, and so on.
+.Pp
+VMware ESX server will manage processor time intelligently to
+guarantee that load is spread smoothly across all the physical
+packages in the system. If there is no work for a logical processor,
+it will be put into a special \fIhalted\fP state, which frees its
+execution resources and allows the virtual machine running on the other
+logical processor on the same package to use the full execution
+resources of the package. The VMware scheduler properly accounts for
+this halt time, so that a VM running with the full resources of a
+package will be charged more than a VM running on a half package. This
+ensures that the server will not violate any of the standard ESX
+resource allocation rules.
+.Sh CONFIGURATION OPTIONS
+.Pp
+All of the standard CPU resource controls (see \fIcpu(8)\fP) are
+unchanged on a hyperthreaded system. In addition, a new "htsharing"
+option is available.
+.Pp
+.Ss SHARES, MIN, MAX
+.Pp
+Because CPU shares are a relative metric, hyperthreading does not
+change their meaning at all. CPU min and max percentages are specified
+in terms of a full \fIpackage\fP, not a single logical processor. That
+is, on a machine with 2 physical packages (4 logical processors) a VM
+with a min of 100% will be guaranteed access to half of the machine's
+CPU resources, i.e. 100% of a physical package.
+.Pp
+.Ss HTSHARING
+.Pp
+The "htsharing" configuration option allows an administrator to
+specify the ways in which the vcpu of a VM are allowed to share
+physical packages on a hyperthreaded system. Two vcpus are "sharing" a
+package if they are both running on logical CPUs of the package at the
+same time. This configuration option may be applied to each VM
+separately, by adding a line of the form
+"\fBsched.cpu.htsharing=<optionname>\fP" to the VM's config
+file. Alternatively, you may execute the command
+.Pp
+.nf
+    echo \fIoptionname\fP > /proc/vmware/vm/\fIvmid\fP/cpu/hyperthreading
+.fi
+.Pp
+to change the htsharing configuration of the running VM whose ID is
+\fIvmid\fP. The possible values are:
+.Bl -tag -width xxxx
+.It Pa any
+.Pp
+The "any" setting is the default for all VMs on a hyperthreaded
+system. The vcpus of a VM with the "any" setting may freely share
+packages at any time with any other vcpus.
+.It Pa none
+.Pp
+If a VM's htsharing is set to "none," then its vcpus should not share
+packages with each other or with vcpus from other VMs. That is, each
+vcpu from this VM should always get a whole package to itself, with
+the other logical CPU on that package being placed into the "halted" state.
+.Pp
+.It Pa internal
+.Pp
+"internal" htsharing is similar to "none," in that vcpus from this VM
+will not be allowed to share packages with vcpus from other
+VMs. However, other vcpus from the same VM will be allowed to share
+packages together. This configuration option is only permitted for SMP
+VMs. If applied to a uniprocessor VM, it will be converted to the
+"none" sharing option.
+.El
+.Pp
+The htsharing option of a VM can also be configured by checking the
+"Isolate VM from Hyper-Threading" checkbox in the CPU options page for
+that VM in the Managment User Interface. If this box is checked, it
+will place the VM in "internal" sharing mode if it is an SMP VM or
+"none" sharing mode for a uniprocessor VM.
+.Pp
+It is important to note that these configuration options have no
+effect on fairness or CPU time allocation. Regardless of a VM's
+htsharing setting, it will still receive CPU time proportional to its
+CPU shares and constrained by its CPU min and max values.
+.Pp
+These htsharing modes should not be necessary for typical workloads,
+but they allow the administrator to prevent system-wide slowdowns from
+unusual workloads that interact badly with hyperthreading. For
+instance, an application with extremely bad cache thrashing behavior
+might slow down an application sharing its physical package. The VM
+running this application could be placed in the "none" or "internal"
+htsharing state to prevent it from harming other VMs.
+.Pp
+.Sh QUARANTINING
+.Pp
+In certain, rare circumstances, VMware ESX Server may detect that an
+application is interacting very badly with Hyper-Threading
+technology. Certain types of self-modifying code, for instance, can
+disrupt the normal behavior of the Pentium IV trace cache and lead to
+substantial slowdowns (up to 90%) for an application sharing a package
+with the poorly-behaved code. In those cases, ESX Server will
+"quarantine" the vcpu running this code, automatically placing its VM
+into the "none" or "internal" htsharing setting, as appropriate. This
+should be transparent to the user and should only occur in very rare
+cases. For more details, see the forthcoming VMware whitepaper "\fIESX
+Server Hyper-Threading Technology Support\fP."
+.Pp
+.Sh CAVEATS
+.Pp
+Manually specified processor affinity settings (set via the
+"\fBsched.cpu.affinity\fP" config file option or the "only use CPUs" MUI
+setting) must be carefully considered on hyperthreaded systems. For
+instance, if a high priority VM is bound to CPU 0 and another high
+priority VM is bound to CPU 1, they will have to share the same
+physical package. It may then be impossible to meet the resource
+demands of these VMs. Administrators should ensure that their affinity
+settings make sense for a hyperthreaded system (in this case by
+binding the VMs to CPU 0 and CPU 2, respectively). Ideally,
+adminstrators should not use affinity settings at all.
+.Pp
+.Sh SEE ALSO
+cpu(8), numa(8)

@@ -1,0 +1,103 @@
+.\" Copyright 2004 VMware, Inc.  All rights reserved.
+.\"
+.\" Print with groff -mandoc <thisfile> | lpr
+.Dd June 19, 2000
+.Dt vm-support 1
+.Os VMnix
+.Sh NAME
+.Nm vm-support
+.Nd Script for gathering debugging information.
+.Sh SYNOPSIS
+.Nm vm-support
+\fIOPTIONS\fR
+.Sh COPYRIGHT
+.if n VMware ESX Server is Copyright 2004 VMware, Inc.  All rights reserved.
+.if t VMware ESX Server is Copyright 200. VMware, Inc.  All rights reserved.
+.Sh DESCRIPTION
+vm-support is script creates a tar archive containing debugging information 
+about the server.  vm-support has three main uses: gathering general debugging 
+information, gathering performance information, gathering information about a 
+specific virtual machine.  A gzipped tar archive containing the gathered data 
+is created in the current directory.  The resulting tar archive will be named 
+esx-{date}.{PID}.tgz.
+
+.Sh GENERAL OPTIONS
+.br
+\fB-n\fR
+.br
+   Causes all core files to be left out of the tar archive.  Mutually 
+   exclusive with the \fB-a\fR option.
+
+\fB-a\fR
+.br
+   Causes all core files to be included -- even those from previous 
+   invocations of this script.  Mutually exclusive with the \fB-n\fR option.
+
+\fB-h\fR
+.br
+   Prints a friendly help message.
+
+.Sh PERFORMANCE OPTIONS
+
+\fB-s\fR
+.br
+   Takes performance snapshots in addition to normal debugging 
+   information.  Mutually exclusive with the \fB-S\fR option.
+
+\fB-S\fR
+.br
+   Takes only performance snapshots.  Mutually exclusive with 
+   the \fB-s\fR option.
+
+\fB-d\fR \fIseconds\fR
+.br
+   Duration of snapshot.  Default 300 seconds.
+
+\fB-i\fR \fIseconds\fR
+.br
+   Time in seconds to sleep between each snapshot.  Default: autodetect.
+
+.Sh VIRTUAL MACHINE OPTIONS
+
+\fB-x\fR
+.br
+   Lists available virtual machines and corresponding world ids for 
+   use with the \fB-X\fR options.
+
+\fB-X\fR \fIworld id\fR
+.br
+   Takes only debugging information for the specified world. 
+
+.Sh EXAMPLES
+
+vm-support
+
+    Gathers general debugging information.
+
+vm-support -S
+
+   Takes performance snapshots, at the default interval for the default 
+   duration.
+
+vm-support -s -i 10 -d 600
+
+   Gathers general debugging information and takes a perforamance 
+   snapshot every 10 seconds for 10 minutes.
+
+vm-support -x
+
+   Lists the running virtual machines for use with vm-support -X.
+
+vm-support -X 314
+   
+   Gathers only virtual machine specific debugging information for the 
+   virtual machine 314.
+
+.Sh TROUBLESHOOTING
+
+   Make sure there is enough disk space in the current directory.  
+   Temporary files creating during the running of vm-support quite 
+   large.
+
+   If vm-support never completes check for dead or not responding nfs or 
+   smbfs mounts.

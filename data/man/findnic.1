@@ -1,0 +1,58 @@
+.\" Copyright 2000 VMware, Inc.  All rights reserved.
+.\"
+.\" Print with groff -mandoc <thisfile> | lpr
+.Dd February 7, 2001
+.Dt findnic 1
+.Os VMnix
+.Sh NAME
+.Nm findnic
+.Nd VMkernel network card locator
+.Sh SYNOPSIS
+.Nm findnic
+\fIOPTIONS\fR 
+\fINIC-NAME\fR 
+\fILOCAL-IP\fR 
+\fIREMOTE-IP\fR
+.Sh COPYRIGHT
+.if n VMware ESX Server is Copyright 2000 VMware, Inc.  All rights reserved.
+.if t VMware ESX Server is Copyright 2000 VMware, Inc.  All rights reserved.
+.Sh DESCRIPTION
+When network interface cards (NICs) are given to the vmkernel, sometimes it
+is difficult to map from the name of the vmkernel device to the actual 
+physical NIC on the machine.  For example, if there are four Intel eepro cards in
+a machine that are dedicated to the vmkernel, these four cards will end up
+being called vmnic0, vmnic1, vmnic2, and vmnic3.  The name of each card
+is based on its order in the PCI bus/slot hierarchy on the machine - the lower
+the bus and slot, the lower the number at the end of the name.  If you know the
+bus and slot order of the NICs then you can figure out which NIC has which name.
+However, if you don't you can use the findnic program to help you make the
+proper association of NIC to name.
+.Pp
+The findnic program takes a vmkernel network device name, an IP address
+to give the device on the local machine, and an IP address that findnic should
+try to ping.  findnic will then ping the remote IP address.  This will allow you
+to determine which NIC is which by either looking at the flashing lights on the
+NIC cards to see which one is flashing or by seeing if the ping itself is
+successful.
+.Sh OPTIONS
+.br
+\fB-f\fR
+.br
+    Do a flood ping.
+.br
+
+\fB-i seconds\fR
+.br
+    Interval in seconds between pings.
+
+.Sh EXAMPLES
+
+findnic vmnic0 10.2.0.5 10.2.0.4
+
+    binds vmkernel device vmnic0 to 10.2.0.5 and then tries to ping
+    the remote machine 10.2.0.4.
+
+findnic -f vmnic1 10.2.0.5 10.2.0.4
+
+   binds vmkernel device vmnic1 to 10.2.0.5 and then tries to flood 
+   ping the remote machine 10.2.0.4.

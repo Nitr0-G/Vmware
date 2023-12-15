@@ -1,0 +1,12 @@
+
+
+PERL packages are used in two places in the ESX Server 1.5 product. 
+The following information is provided in compliance with the "Artistic License"
+
+1. The mod_perl package is used in unmodified form.
+The version number is 1.26.
+It can be downloaded from http://perl.apache.org
+
+2. The unmodified Perl package is linked with vmware-serverd.
+The version number is 5.00503.
+It can be downloaded from http://www.cpan.org.

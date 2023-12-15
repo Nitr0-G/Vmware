@@ -1,0 +1,112 @@
+.\" Copyright 2000 VMware, Inc.  All rights reserved.
+.\"
+.\" Print with groff -mandoc <thisfile> | lpr
+.Dd March 22, 2001
+.Dt vmkload_mod 1
+.Os VMnix
+.Sh NAME
+.Nm vmkload_mod
+.Nd VMkernel module loader
+.Sh SYNOPSIS
+.Nm vmkload_mod
+\fIOPTIONS\fR \fIMODULE-BINARY\fR \fIMODULE-TAG\fR \fIPARAMETERS\fR
+.Sh COPYRIGHT
+.if n VMware ESX Server is Copyright 2000 VMware, Inc.  All rights reserved.
+.if t VMware ESX Server is Copyright 2000 VMware, Inc.  All rights reserved.
+.Sh DESCRIPTION
+vmkload_mod is a program that is used to load device driver and network shaper
+modules into the VMkernel.  vmkload_mod can also be used to unload a module,
+list the loaded modules, and list the available parameters for each module.
+The MODULE-BINARY and MODULE-TAG parts of the command line are
+required when a module is loaded and are ignored when the --unload, --list, and
+--showparam options are used.  The PARAMETERS part of the command line is
+optional and also only makes sense when a module is being loaded.
+.br
+
+.br
+When vmkload_mod is invoked to load a module, MODULE-BINARY is the name of the 
+module binary that is to be loaded and MODULE-TAG is the name that the VMkernel 
+should associate with the loaded module.  The tag can be any string of letters and 
+numbers.  If the module is a device driver, the VMkernel will name the module with 
+the MODULE_TAG plus a number starting from zero.  If there are multiple device 
+instances created by loading the module or multiple device driver modules loaded 
+with the same tag, then each device will get a unique number based on order of
+device instance creation.
+.Sh OPTIONS
+.br
+\fB-l\fR
+.br
+\fB--list\fR
+.br
+    List out the current modules that are loaded.
+
+\fB-u MODULE-BINARY\fR
+.br
+\fB--unload MODULE-BINARY\fR
+.br
+    Unload the named module.
+
+\fB-v\fR
+.br
+\fB--verbose\fR
+.br
+    Be verbose during module loading.
+
+\fB-d SCSI-DEVICE-NAME\fR
+.br
+\fB--device SCSI-DEVICE-NAME\fR
+.br
+    The module being loaded is for a SCSI adapter that is currently being
+    used by the console operating system.  After the module is loaded the 
+    SCSI adapter will be controlled by the VMkernel but the console OS 
+    will continue to be able to access all SCSI devices.  The format of 
+    SCSI-DEVICE-NAME is \fIPCI-Bus:PCI-slot\fR.
+
+\fB-e\fR
+.br
+\fB--exportsym\fR
+.br
+    Export all global exported symbols from this module. This will allow 
+    other modules to use exported functions and variables from the loaded 
+    module.  This option should not be used for normal device driver
+    and shaper modules since there may be symbol conflicts.
+
+\fB-s\fR
+.br
+\fB--showparam\fR
+.br
+    List all available module parameters that can be specified in the
+    PARAMETER section of the command line.
+
+.Sh PARAMETERS
+Modules can specify parameters that can be set on the command line.
+A list of these parameters is shown via the --showparam option.  In 
+order to set one of these parameters, a name-value pair must be specified
+at the end of the command line.  The syntax is of the form \fIname=value\fR.
+Any number of parameters can be specified.
+
+.Sh EXAMPLES
+
+vmkload_mod /usr/lib/vmware/vmkmod/e100.o vmnic debug=5
+
+   loads the module /usr/lib/vmware/vmkmod/e100.o into the VMkernel.  The
+   tag for this module is \fBvmnic\fR.  Each e100 card that was
+   assigned to the VMkernel will be given the name \fBvmnic#\fR, where #
+   starts at 0.  For example if there were two e100 cards assigned to
+   the VMkernel, these would have VMkernel names of vmnic0 and vmnic1.
+   The module parameter \fIdebug\fR will be set to the value 5.
+
+vmkload_mod --device 0:12 /usr/lib/vmware/vmkmod/aic7xxx.o vmhba
+
+   loads the module /usr/lib/vmware/vmkmod/aic7xxx.o into the VMkernel.  The 
+   tag for this module is \fBvmhba\fR.  The Adaptec SCSI adapter is 
+   currently being used by the console operating system.  The SCSI
+   adapter is located on PCI bus 0, slot 12.
+
+vmkload_mod --exportsym /usr/lib/vmware/vmkmod/vmklinux linuxdrivers
+
+   loads the module /usr/lib/vmware/vmkmod/vmklinux into the VMkernel.  All
+   exported symbols from this module will be available to other modules
+   that are subsequently loaded.  The vmklinux module is the module that
+   allows Linux device drivers to run in the VMkernel so it is one of the
+   few modules for which the --exportsym option makes sense.

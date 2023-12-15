@@ -1,0 +1,48 @@
+.\" Copyright 2000 VMware, Inc.  All rights reserved.
+.\"
+.\" Print with groff -mandoc <thisfile> | lpr
+.Dd October 14, 2004
+.Dt vmkloader 1
+.Os VMnix
+.Sh NAME
+.Nm vmkloader
+.Nd VMkernel loader
+.Sh SYNOPSIS
+.Nm vmkloader
+\fIOPTIONS\fR \fIVMKERNEL-BINARY\fR
+.Sh COPYRIGHT
+.if n VMware ESX Server is Copyright 2000 VMware, Inc.  All rights reserved.
+.if t VMware ESX Server is Copyright 2000 VMware, Inc.  All rights reserved.
+.Sh DESCRIPTION
+vmkloader loads or unloads the VMkernel.  With no flags,
+it loads the VMkernel specified by VMKERNEL-BINARY.
+If the VMkernel is already loaded, the load will fail.  
+.br
+
+.Sh OPTIONS
+.br
+\fB-f\fR
+.br
+    When specified with \fB-u\fR, forces VMkernel unload even if a virtual 
+    machine is currently running on it.
+
+\fB-u\fR
+.br
+    Unload the VMkernel. The VMKERNEL-BINARY argument is ignored and the 
+    VMkernel is unloaded as long as no virtual machines are currently 
+    running on the VMkernel. If there are virtual machines running, then 
+    the unload fails.  
+
+.Sh EXAMPLES
+
+vmkloader /usr/lib/vmware/vmkernel
+
+    loads the VMkernel binary /usr/lib/vmware/vmkernel.
+
+vmkloader -u
+
+    unloads the VMkernel if there are no virtual machines running.
+
+vmkloader -uf
+
+    unloads the VMkernel even if there are virtual machines running.

@@ -1,0 +1,98 @@
+.\" Copyright 2000 VMware, Inc.  All rights reserved.
+.\"
+.\" Print with groff -mandoc <thisfile> | lpr
+.Dd February 8, 2001
+.Dt net 8
+.Os VMware
+.Sh NAME
+.Nm net
+.Nd VMware ESX Server network interface management
+.Sh COPYRIGHT
+.if n VMware ESX Server is Copyright 2000 VMware, Inc.  All rights reserved.
+.if t VMware ESX Server is Copyright 2000 VMware, Inc.  All rights reserved.
+.Sh INTRODUCTION
+VMware ESX Server allows system administrators to allow or disallow
+promiscuous mode on network interfaces and to print out network
+statistics.  Promiscuous mode can be allowed or disallowed on a 
+per-interface basis or on a per-VM basis.  Likewise, statistics can be
+printed on a per-interface basis or on a per-VM basis.
+.Sh PROMISCUOUS MODE
+Promiscuous mode can be controlled and queried on a per-interface basis 
+by accessing the file /proc/vmware/net/NIC-NAME/config where NIC-NAME is 
+the name of the network interface that is of interest.  To find out the 
+status of the interface you would do
+.nf
+.Pp
+    cat /proc/vmware/net/NIC-NAME/config
+.Pp
+To enable promiscuous mode on this interface you would do
+.Pp
+    echo "PromiscuousAllowed Yes" >> /proc/vmware/net/NIC-NAME/config
+.Pp
+To disable promiscuous mode on this interface you would do
+.Pp
+    echo "PromiscuousAllowed No" >> /proc/vmware/net/NIC-NAME/config
+.Pp
+.fi
+Once promiscuous mode is allowed on an interface, by default 
+all virtual machines that use that interface will be allowed 
+to put the interface in promiscuous mode.  If you want to control
+which particular VMs are allowed to put an interface in promiscuous 
+mode, you can do this through the proc interface as well.  For each
+virtual NIC on each VM that is attached to a particular
+interface, there will be a file under the /proc/vmware/net/NIC-NAME
+directory whose name will be the MAC address of the virtual NIC.
+.Pp
+To find out the status of a particular virtual NIC you would do
+.nf
+.Pp
+    cat /proc/vmware/net/NIC-NAME/MAC-ADDR
+.Pp
+To enable promiscuous mode on this virtual NIC you would do
+.Pp
+    echo "PromiscuousAllowed Yes" >> /proc/vmware/net/NIC-NAME/MAC-ADDR
+.Pp
+To disable promiscuous mode on this interface you would do
+.Pp
+    echo "PromiscuousAllowed No" >> /proc/vmware/net/NIC-NAME/MAC-ADDR
+.Pp
+.fi
+.Sh STATISTICS
+Statistics can be printed out on a per-interface basis by printing out
+the file /proc/vmware/net/NIC-NAME/stats
+.Pp
+    cat /proc/vmware/net/NIC-NAME/stats
+.Pp
+Statistics can be printed out for each virtual NIC instance by printing 
+out the file /proc/vmware/net/NIC-NAME/MAC-ADDR
+.Pp
+    cat /proc/vmware/net/NIC-NAME/MAC-ADDR
+.Sh EXAMPLES
+Suppose you have one interface named "vmnic0" and it is being used by
+two virtual machines.  The MAC addresses for the virtual machine's NICs
+are 00:50:56:f5:09:54 and 00:50:56:f5:09:1f.  If you want to figure out
+the status of promiscuous mode on this interface we would simply cat the
+config file
+.Pp
+.nf
+    % cat /proc/vmware/net/vmnic0/config
+.fi
+.Pp
+To turn promiscuous mode on for the interface you would just do the command
+.Pp
+.nf
+   % echo "PromiscuousAllowed Yes" >> /proc/vmware/net/vmnic0/config
+.fi
+.Pp
+To check out the status of the virtual NIC with MAC address 00:50:56:f5:09:54
+you would simply cat the file with the same name
+.Pp
+.nf
+    % cat /proc/vmware/net/vmnic0/00:50:56:f5:09:54
+.fi
+.Pp
+To turn promiscuous mode off for this virtual NIC you just do the command
+.nf
+    % echo "PromiscuousAllowed No" >> /proc/vmware/net/vmnic0/00:50:56:f5:09:54
+.fi
+.Pp

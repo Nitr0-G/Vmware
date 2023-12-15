@@ -1,0 +1,200 @@
+.\" Copyright 2003 VMware, Inc.  All rights reserved.
+.\"
+.\" Print with groff -mandoc <thisfile> | lpr
+.Dd January 20, 2004
+.Dt numa 8
+.Os "VMware ESX Server" 2.1
+.Sh NAME
+.Nm NUMA -- Non-Uniform Memory Access
+.Nd VMware ESX Server NUMA support
+.Sh COPYRIGHT
+.if n VMware ESX Server is Copyright 2003 VMware, Inc.  All rights reserved.
+.if t VMware ESX Server is Copyright 2003 VMware, Inc.  All rights reserved.
+.Sh DESCRIPTION
+VMware ESX Server contains special optimizations and configuration
+options to work efficiently with Non-Uniform Memory Access (NUMA)
+systems, such as the IBM x440 and x445 series. This document provides
+an overview of NUMA technology, along with the manual and automatic
+controls for NUMA optimization that exist in VMware ESX Server.
+.Pp
+.Ss WHAT IS NUMA?
+.Pp
+NUMA systems are divided into several \fInodes\fP, also called "CECs"
+in IBM's terminology. Each node contains processors (usually two or
+four) and memory. Each processor can access memory on any node, but
+accessing memory on a different node (referred to as "remote memory")
+is substantially slower than accessing "local memory," which lies on
+the same node as the processor. Thus, it is important to place data in
+memory close to processors that will access it.
+.Pp
+.Ss NUMA HARDWARE INFORMATION
+The file \fI/proc/vmware/NUMA/hardware\fP provides information about
+the NUMA hardware configuration of the system. This file will not be
+present on non-NUMA systems. It constains several self-explanatory
+fields describing the system configuration ("# NUMA Nodes", "Total
+memory"), along with a table providing detailed information for each
+node. The table contains the following fields:
+.Bl -tag -width xx
+.It Pa Node
+The node number described on this line.
+.It Pa MachineMem
+The amount of physical memory located in this node, including memory
+that may be used by the Service Console or by the ESX Server
+virtualization layer.
+.It Pa ManagedMem
+The amount of memory in this node that is available for use by virtual
+machines.
+.It Pa CPUs
+A space-separated list of the processors located in this node.
+.El
+.Pp
+.Ss AUTOMATIC NUMA OPTIMIZATION
+.Pp
+VMware ESX Server uses a sophisticated algorithm to balance virtual
+machines and their related data between the available NUMA nodes. The
+algorithm attempts to maximize memory locality (the amount of VM
+memory that lies on the node where the VM is running) without
+signficantly degrading fairness. 
+.Pp
+The algorithm assigns each VM a "home node" when it starts. The VM
+will only run on CPUs in the home node, and its memory will be
+allocated on this node as well. Periodically, the system will compare
+the utilization levels of all NUMA nodes in the system and attempt to
+"rebalance" them if one node has a higher utilization level than the
+others, by changing a VM's home from the over-utilized node to an
+under-utilized one. When the nodes are reasonably balanced, the system
+will also work to maximize memory locality by changing VM home nodes
+and moving memory between nodes (through "page migration").
+.Pp
+For most conditions, this algorithm works well to provide good
+performance and fairness. However, users with very memory-intensive
+workloads or a small number of VMs (e.g. 1 VM per physical CPU in the
+system), may achieve better performance with the manual NUMA controls
+described below. If an SMP VM has more virtual CPUs than the smallest
+NUMA node has physical CPUs, the system will not be able to set its
+home node automatically, so users should consider setting manual
+affinity in that case as well.
+.Pp
+\fBAutomatic NUMA optimization and CPU affinity\fP
+.Pp
+If a virtual machine has manual CPU affinity set (either in the config
+file or via the Management Inteface's "only use processors" option),
+the system will not override those settings to change its home
+node. However, if a VM's manual settings bind it to a single node or
+to a subset of the CPUs on a node, ESX Server will automatically set
+its memory to be allocated on the same node. To disable this feature,
+set the global "NUMAAutoMemAffinity" configuration option to 0.
+.Pp
+.Ss MANUAL NUMA OPTIMIZATION
+.Pp
+It is also possible to control the NUMA placement of VMs
+manually. There are two components to VM placement: CPU affinity and
+memory affinity. Typically, to bind a virtual machine to a NUMA node,
+the administrator should set its CPU affinity to only use CPUs on the
+desired node and also set the NUMA memory affinity to the same
+node. For more details on setting memory and CPU affinity, consult the
+\fBmem(8)\fP and \fBcpu(8)\fP man pages, or use the VM's "edit
+resources" page in the Management Interface. If both of these affinity
+settings are in place before the VM is booted, then all of the VM's
+memory will be allocated on the specified node and the VM will only
+run on the specified node.
+.Pp
+Setting manual affinity is the best way to guarantee that all memory
+is located on the same node. When using this approach, however,
+administrators must be cognizant of the possible impact on
+fairness. Because the affected VMs can no longer move between nodes,
+one node may be overloaded, while another node is under-utilized. Thus,
+it is important to balance VMs correctly between the available nodes
+if manual affinity is used.
+.Pp
+If a VM is manually moved to a different node after it has been
+booted, its already-allocated memory will still lie on its original
+node. Memory can be slowly moved to the new node by increasing the
+VM's page migration rate. To increase the migration rate, write a new,
+integer value to the \fI/proc/vmware/vm/id/mem/migrate-rate\fP
+file. The value specifies the number of VM memory pages to try
+remapping each second. Note that changing page migration rates is only
+recommended for advanced users. It is often preferable to stop a VM
+and restart it with new memory affinity settings.
+.Pp
+\fBDeactivating automatic NUMA optimizations\fP
+.Pp
+The automatic NUMA optimizations can be completely disabled by setting
+the global configuration options \fINUMARebalance\fP and
+\fINUMAAutoMemAffinity\fP both to 0. These changes will ensure that
+newly-added VMs are not bound to homenodes and currently running VMs
+will not be moved to different homenodes. To unbind running VMs from
+their current placements, write the word "unbind" to the
+\fI/proc/vmware/sched/numasched\fP file. This should be done after
+setting \fINUMARebalance\fP to 0.
+.Pp
+.Ss GLOBAL NUMA CONFIGURATION OPTIONS
+.Pp
+The following options can be changed through the "Advanced Settings"
+page of the Management Interface or by editing their respective files
+in the \fI/proc/vmware/config/Numa/\fP directory. In general, changing
+these options is only recommended for very advanced users.
+.Bl -tag -width xx
+.It Pa AutoMemAffinity
+If this option is set to 0, the system will not automatically set
+memory affinity for VMs with CPU affinity set. See "Automatic NUMA
+optimization and CPU affinity" above.
+.It Pa MigImbalanceThreshold
+The NUMA rebalancer computes an imbalance level for each node by
+subtracting the amount of time used by VMs on a node from the amount
+of time entitled to VMs on the node. This option determines the
+minimum gap between two nodes' imbalance levels that can lead to a
+NUMA rebalancing operation. It is specified in terms of milliseconds
+of gap per second, per processor. In general, increasing this value
+will improve memory locality, but hurt fairness, while decreasing this
+value will have the opposite effect.
+.It Pa PageMig
+If this is set to 0, the system will not automatically migrate pages
+between nodes in order to improve memory locality. Page migration
+rates set manually will still be effective.
+.It Pa Rebalance
+Setting this option to O disables all NUMA rebalancing and initial
+placement of VMs, effectively disabling the NUMA scheduling system.
+.It Pa RebalancePeriod
+This option controls the frequency of NUMA rebalance periods,
+specified in milliseconds. More frequent rebalancing may increase CPU
+overheads, particularly on machines with a large number of running
+VMs. However, more frequent rebalancing may also improve fairness.
+.El
+.Sh EXAMPLES
+.Pp
+The following examples refer to a machine with the following hardware
+configuration, as reported by \fI/proc/vmware/NUMA/hardware\fP:
+.Pp
+.nf
+	System type    : IBM x440-compatible
+	# NUMA Nodes   : 2
+	Total memory   : 8192 MB
+	Node  ID MachineMem  ManagedMem   CPUs
+	   0  00    4096 MB     3257 MB   0 1 2 3
+	   1  01    4096 MB     4096 MB   4 5 6 7
+.Pp
+We can see that this is a 2-node, 8-processor IBM x440 system. Suppose
+we want to start a VM, but we only want it to run on node 1. We can
+simply check boxes 4, 5, 6, and 7 in the "only use processors" section
+of the Management Interface's resource editing page for this
+VM. Alternatively, we could add the following line to the VM's config
+file.
+.Pp
+.nf
+	sched.cpu.affinity = "4,5,6,7"
+.Pp
+We should also set its memory affinity to guarantee that all of the
+VM's memory will be allocated on node 1. We can do this by simply
+checking the box for node 1 in the "NUMA affinity nodes" section of
+the Management Interface's resource editing page for this VM.  Or, we
+could add the following line to the VM's config file:
+.Pp
+.nf
+	sched.mem.affinity = "1"
+.Pp
+After we have setup both CPU and memory affinity in this way, we can
+start the VM and be sure that it will run and allocate memory only on
+node 1.
+.Sh SEE ALSO
+mem(8), cpu(8), numa(8)

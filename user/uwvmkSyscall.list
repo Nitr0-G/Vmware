@@ -1,0 +1,237 @@
+#                                This is sort of like a -*-shell-script-*-
+# UserWorld VMKernel Syscalls.  
+#
+
+# For each entry 'Foo' below, a 'VMKernel_Foo' is generated for use in
+# user-mode, and stubs are generated for the kernel that expect a
+# 'UWVMKSyscall_Foo' to be provided.  Arguments to syscalls in this
+# list can be tagged with '+OUT' '+DEEPCOPY' or '+ISPTR'.  All calls
+# implicitly return an error code.    All calls must end in a semicolon.
+#
+# At most six arguments are allowed.
+#
+# Documentation for each system call should be placed on the
+# 'UWVMKSyscall_Foo' function.  Look there to find out what
+# 'VMKernel_Foo' does.
+#
+# To specify an existing vmkernel function to be executed (instead of
+# UWVMKSyscall_Foo) use the +KERNEL_HANDLER=>vmkfunction_name syscall
+# flag.  To make a syscall usable by GPL'd applications, add the
+# "+DIST_SYSCALL" syscall flag.
+#
+
+#
+# To re-generate the syscall code, run $BORA/support/scripts/uwvmkGen.
+# It will invoke $BORA/support/scripts/syscallGen.pl with the right
+# arguments for generating the uwvmk syscalls.  See uwvmkGen for 
+# its requirements (BORA must be set, etc).
+#
+
+# ---
+
+# GetSyscallVersion should always be first (so it's always #0), and its
+# signature should not be changed.
+GetSyscallVersion(uint32* version +OUT) +DIST_SYSCALL;
+
+#
+# MPN/VPN calls
+#
+
+LockPage(VPN userVPN, 
+         MPN* outMPN +OUT);
+ProbeMPN(VPN userVPN, 
+         MPN* outMPN +OUT);
+
+GetNextAnonPage(World_ID worldID, 
+                MPN inMPN, 
+                MPN* outMPN +OUT);
+
+ReadVMKStack(World_ID worldId,
+	     int pageNum,
+	     uint8* data,
+	     VA* vaddr +OUT);
+
+GetMPNContents(MPN mpn, 
+               uint8* buf);
+
+
+# Debug builds only:
+SetMPNContents(MPN mpn, 
+               const uint8* buf);
+
+
+#
+# debugger/core dump calls
+#
+
+BreakIntoDebugger(void* fullFrame);
+
+LiveCoreDump(char *coreFileName,
+    	     int coreFileNameLen);
+
+#
+# RPC calls
+#
+RPCConnect(const char *name +STRING[RPC_CNX_NAME_LENGTH],
+	   int *cnxFD +OUT,
+	   int32 *cnxID +OUT);
+
+RPCGetMsg(int32 cnxFD,
+          RPC_MsgInfo *msgInfo,
+          uint32 timeout,
+          int32 isBlocking,
+          World_ID switchToWorldID);
+
+RPCSendMsg(int32 cnxFD,
+           int32 rpcFunction,
+           char *msgBuf,
+           int32 msgBufLen);
+
+RPCReply(int32 cnxFD,
+         int32 token);
+
+#
+# guest VM calls
+#
+CreateVCPU(VMnix_CreateWorldArgs *args +DEEPCOPY,
+           SharedAreaDesc *desc +ARRAY[MAX_SHARED_AREA_DESC],
+           World_ID *worldID +OUT);
+
+BindVCPU(World_ID groupLeaderID, 
+	 int32 vcpuID,
+	 World_ID *worldID +OUT);
+
+ReleaseAllVCPUs();
+
+#
+# configuration calls
+#
+GetCPUkhzEstimate(uint32 *cpukHzEstimate +OUT);
+
+GetNumCPUsUsed(uint32 *numCPUs +OUT);
+
+GetNumLogicalCPUsPerPackage(uint8 *numCPUs +OUT);
+
+GetCPUIDs(CPUIDSummary *cpuIDs,
+          uint32 bufLen);
+
+SetVMXInfo(const char *cfgPath +STRING[WORLD_MAX_CONFIGFILE_SIZE],
+           const char *uuidString +STRING[WORLD_MAX_UUIDTEXT_SIZE],
+           const char *displayName +STRING[WORLD_MAX_DISPLAYNAME_SIZE]);
+
+SetUID();
+
+#
+# mem map calls
+#
+
+SetupPhysMemMap(PPN startPPN,
+		uint32 length,
+		void **addr);
+
+ReleasePhysMemMap(void* vaddr,
+		  uint32 length);
+
+MemTestMap(MPN *inOutMPN,
+           uint32 *numPages,
+           void **addr) +DIST_SYSCALL;
+
+
+#
+# Monitor calls
+#
+
+AsyncCheckActions(World_ID worldID);
+
+AddPage(int32 vcpuID,
+        VPN vpn,
+        MPN mpn,
+        int32 readOnly);
+
+ReadPage(World_ID worldID,
+	 VPN vpn,
+	 uint8* data);
+
+ReadRegs(World_ID worldID,
+	 VMnix_ReadRegsResult* result +OUT);
+
+#
+# VMM World management (creation/destruction/etc)
+#
+
+RunWorld(World_ID worldID,
+	 VMnix_Entry start);
+
+#
+# network calls
+#
+
+NetConnect(World_ID worldID,
+           const char *name +STRING[VMNIX_DEVICE_NAME_LENGTH],
+           Net_PortID *portID +OUT);
+
+NetDisconnect(World_ID worldID,
+              Net_PortID portID);
+            
+UsingVMKTcpIpStack();
+
+#
+# SCSI device emulation
+#
+
+DelaySCSICmds(uint32 delay);
+
+#
+# Special VMFS operations
+#
+
+PhysMemIO(int fd, uint32 offsetHi, uint32 offsetLo,
+          int startPercent, int endPercent, Bool isRead);
+
+VSCSICreateDev(World_ID vmmLeader, VSCSI_DevDescriptor *desc +DEEPCOPY, 
+               VSCSI_HandleID *vcsiID +OUT) +KERNEL_HANDLER=>VSCSI_CreateDevice;
+VSCSIDestroyDev(World_ID vmmLeader, VSCSI_HandleID vcsiID) +KERNEL_HANDLER=>VSCSI_DestroyDevice;
+
+OpenCowHierarchy(FS_FileHandleID *fids +ARRAY[COW_MAX_REDO_LOG], 
+                 int numFids, 
+                 COW_HandleID *cid +OUT) +KERNEL_HANDLER=>COW_OpenHierarchy;
+CowCombine(COW_HandleID *cid +DEEPCOPY, int linkOffsetFromBottom) +KERNEL_HANDLER=>COW_Combine;
+
+#
+# Checkpointing and migration
+#
+
+MarkCheckpoint(Bool wakeup, Bool start);
+
+CheckpointCleanup();
+
+SaveMemory();
+
+MigrateWriteCptData(int offset, void *data, int size, Bool completed);
+
+MigratePollForData(VMnix_MigrateProgressResult *progress);
+
+MigrateReadCptData(int offset, void *dest, int size, int *sizeOut +OUT);
+
+InitMigration(uint32 tsHi, uint32 tsLo, uint32 srcIpAddr, uint32 destIpAddr,
+              World_ID destWorldID, Bool grabResources);
+
+#
+# Low level port input/output
+#
+Inb(uint32 port, uint8 *value +OUT);
+Outb(uint32 port, uint8 value);
+
+#
+# System Alert Message
+#
+SysAlert(const char *msg +STRING[81]) +DIST_SYSCALL;
+
+#
+# File locking
+#
+
+IsCosPidAlive(int cosPid);
+GetCosProxyPid(int *cosPid +OUT);
+
+#eof

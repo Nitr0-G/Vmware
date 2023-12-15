@@ -1,0 +1,560 @@
+Frequently Asked Questions about the installation of the
+VMware ESX Server
+
+The questions are broken down into the different stages of the web
+based install process.  Those questions are
+
+(1) PCI Divy: pcidivy-www.pl
+
+  - What exactly does the pcidivy-www.pl script do?
+
+  - How should I allocate my network devices?
+
+  - How should I allocate my SCSI/RAID devices?
+
+  - What are the rules governing shared SCSI/RAID devices?
+
+  - When do I actually need to reboot my machine?
+
+  - After allocating all my devices to the virtual machines, my console
+    operating system complains about a Panic and fails to boot.
+
+  - After allocating some of my Ethernet adapters to the virtual machines,
+    my console Ethernet adapter fails to come up.  What happened?
+
+  - What do I have to do when I add a new device to my system?
+
+(2) System Setup: vmware-config-www.pl
+
+  - What exactly does the vmware-config-www.pl script do?
+
+  - Why do I get a message saying that I must get rid of shared SCSI/RAID
+    mode and reboot?
+
+  - When do I need to run the vmware-config-www.pl script?
+
+(3) Edit Partitions/Create VMFS: viewpart-www.pl
+
+  - What exactly does viewpart-www.pl do?
+
+  - How do I use the command line version of fdisk?
+
+  - How do I create a VMFS file system without using viewpart-www.pl?
+
+  - After creating a new VMFS file system, I created a disk.  When I
+    start the virtual machine using the disk, an operating system that I
+    installed earlier appears.  Why is it here?
+
+  - How do I create a vmkdump partition using the command line version
+    of fdisk?
+
+  - How do I extract a vmkdump core and log file?
+
+(4) Virtual Machine Wizard: vmcfg-esx
+
+  - What exactly does vmcfg-esx do?
+
+  - Is RedHat 6.2 the only Linux guest operating system that I can install?
+
+  - Can I also install Windows NT as a guest operating system?
+
+  - How do I add a virtual machine that I defined manually to the overview page?
+
+
+========================================
+(1) PCI Divy: pcidivy-www.pl
+========================================
+
+- What exactly does the pcidivy-www.pl script do?
+
+The purpose of the pages shown by the pcidivy-www.pl is to allow you
+to choose how you would like to allocate your devices.  You may
+allocate devices to either the Console operating system or to the
+virtual machines.  For example, if you have 2 Ethernet cards, you may
+give one to the Console operating system and one to the virtual
+machines.  To optimize performance, you should allocate as many
+devices as possible to the virtual machines.  In the previous case,
+you could have given both Ethernet cards to the virtual machines, but
+then you would not be able to access the Console operating system
+remotely.
+
+In some situations, you may want to share your SCSI and RAID devices
+between the virtual machines and the Console operating system.
+SCSI/RAID devices need to be shared if the Console operating system
+and the virtual machines will be using the device.  For more
+information about the conditions in which SCSI/RAID devices may be
+shared, see the section "What are the rules governing shared SCSI/RAID
+devices?"
+
+The pcidivy-www.pl program modifies the /etc/lilo.conf file.  The
+/etc/lilo.conf file specifies the different boot configurations that
+are possible with Linux.  The line of interest is the last line in
+each boot entry that begins with the word "append=".  On this line,
+will be the word "cpci."  The numbers and characters following this
+line specify the PCI devices that are to be allocated to the console
+operating system.  All PCI devices that are not allocated to the
+console operating system are allocated to the virtual machines.  The
+syntax of the cpci line is not covered in this FAQ as it is subject to
+change.
+
+The pcidivy-www.pl program maintains a file /etc/vmware/hwconfig that
+is essentially a cache of the hardware configuration.  This file is
+rewritten each time a change in the hardware configuration occurs.  It
+is also read each time the program starts and used as an authoritative
+list of PCI devices on the system.  You should not modify this file.
+
+Another file of interest is the /etc/vmware/vmware-devices.map file.
+This file maps PCI devices to their appropriate drivers.  This file is
+consulted by the pcidivy-www.pl program to determine the appropriate
+VMkernel drivers for the supported PCI devices.  You may only allocate
+devices if they appear in this file as this file lists the PCI devices
+that are supported by the ESX Server.  
+
+- How should I allocate my network devices?
+
+We suggest you give as many network adapters to the virtual machines
+as possible.  Doing so will help ensure that the majority of your
+network resources will be devoted to the virtual machines.  As the
+Console operating system is intended primarily as a management
+interface, you should minimize resources allocated to the Console
+operating system.  You will most likely want to allocate at least one
+Ethernet device to the Console operating system so that you can manage
+your ESX Server remotely.
+
+In the event that you want virtual machine(s) to use an Ethernet
+adapter owned by the console operating system, you can use bridged
+networking.  With bridged networking, a virtual machine can access the
+Ethernet cards owned by the console operating system.  However,
+bridged networking requires that the console operating system service
+requests sent on its Ethernet card resulting in slower performance.
+You also may not want to use bridge networking to provide a firewall
+between your virtual machines and the Console operating system.
+
+In the likely event that you have fewer Ethernet devices than virtual
+machines, you can share VMkernel Ethernet adapters between the virtual
+machines with little performance penalty.
+
+See the README file for more information about how you can manage your
+network settings.
+
+- How should I allocate my SCSI/RAID devices?
+
+Allocating SCSI/RAID devices is a little bit trickier than allocating
+Ethernet devices.  You do not have as fine grained control over how
+you allocated your SCSI/RAID devices.  The unit of device allocation is a
+PCI card device.  With SCSI/RAID, you may connect multiple SCSI/RAID disks,
+CD-ROM drives, tape drives, and other devices to the SCSI/RAID adapter.
+Some SCSI/RAID cards will also have multiple functions resulting in
+multiple adapters on each card.  When you allocate a SCSI/RAID device to
+the Console operating system or to the VMkernel, you must allocate all
+the SCSI/RAID disks, CD-ROM drives, and other attached devices along with
+the SCSI/RAID device.  As a result, you have only coarse grained control
+over how you allocate SCSI/RAID devices.
+
+When allocating SCSI/RAID devices, the same principle as the one used for
+Ethernet devices applies.  You should give as many SCSI/RAID devices to the
+virtual machines as is possible to ensure that the majority of your
+mass storage resources are utilized by your virtual machines.  If you
+do not have any IDE disks, you may have to allocate at least one SCSI/RAID
+device to the console operating system since the Console needs to have 
+a disk from which it can boot along with the VMkernel.
+
+SCSI/RAID devices can also be shared between the console operating
+system and the VMkernel.  See the section "What are the rules
+governing shared SCSI/RAID devices?" for more information about the
+circumstances under which shared SCSI/RAID should be used.
+
+- What are the rules governing shared SCSI/RAID devices?
+
+In order for shared SCSI/RAID to work, the Console operating system must be
+aware of the SCSI/RAID device.  To make the Console operating system aware
+of the SCSI/RAID device, the appropriate entry must be added onto the cpci
+line of the /etc/lilo.conf file.  The web-based form will
+automatically add the appropriate entry if the SCSI/RAID device is
+allocated as a shared device.  
+
+Once the Console operating system is aware of the SCSI/RAID device, a
+driver for the SCSI/RAID device must also be loaded.  Linux and the Console
+operating system usually load the driver for the SCSI/RAID device
+automatically.  In the event that the driver is not loaded, the
+"insmod" command can be used to load the SCSI/RAID driver.  See the man
+pages for "insmod" for more information about how to load drivers into
+the Console operating system.  You can find the appropriate SCSI/RAID drivers
+off a subdirectory in the /lib/modules directory.
+
+To be precise about how devices can be shared, we shall define a SCSI/RAID
+adapter card to be a PCI device that contains one or more SCSI/RAID
+adapters.  In the case that the SCSI/RAID adapter card has more than one
+SCSI/RAID adapter, each SCSI/RAID adapter is implemented as a separate function
+on the PCI card.  Such a PCI card is also known as a multi-function
+device.  A SCSI/RAID adapter is defined to be a single device controller
+from which disks, CD-ROMS, DAT's, and other devices can be attached.
+
+It is important to distinguish between a SCSI/RAID adapter card and a SCSI/RAID
+adapter since the SCSI/RAID adapter card is a PCI device and therefore the
+unit of allocation.  All SCSI/RAID adapters on a SCSI/RAID adapter card are thus
+allocated as a single unit to either the Console operating system,
+virtual machines, or both in the case that they are shared.  
+
+When a SCSI/RAID adapter card is shared, all the SCSI/RAID adapters on that card
+are also shared.  One adapter on an adapter card cannot be given to
+the virtual machines while the others are shared.  Similarly, one
+adapter cannot be shared while the others are given to the Console
+operating system.
+
+Let's take an example.  Suppose your machine has SCSI/RAID adapters
+scsi0 and scsi1 that are on the same SCSI/RAID adapter card.  If you
+choose to share one of the adapters, you must share both.  Similarly,
+if you choose to allocate one of the adapters to the VMkernel, you
+must allocate both to the VMkernel.
+
+- When do I actually need to reboot my machine?
+
+You will need to reboot your machine whenever you change anything
+in the /etc/lilo.conf file.  This includes changes to the memory
+allocated to the Console operating system and changes to the cpci
+line controlling which devices are known to the Console operating
+system.
+
+If you only change a SCSI/RAID device from being owned exclusively by the
+Console operating system to being shared, you do not have to reboot
+the system.  A simple restart of the VMware ESX Server will do.
+After all the virtual machines are powered down, run the commands
+
+/etc/rc.d/init.d/vmware stop
+/etc/rc.d/init.d/vmware start
+
+to stop and start the ESX Server with new settings.
+
+- After allocating all my devices to the virtual machines, my Console
+  operating system complains about a Panic and fails to boot.  Everything
+  was working fine up until then, what happened?
+
+Most likely, you allocated all your SCSI/RAID disks to the virtual
+machines leaving the Console operating system with no SCSI/RAID disks.
+If the operating system was installed on a SCSI/RAID disk, the Console
+will be unable to boot from the SCSI/RAID disk, since it was not
+allocated any SCSI/RAID adapters or disks.  You will have to get into
+the system somehow to assign the SCSI/RAID adapters in such a way that
+the Console operating system will have access to the disk on which it
+was installed.  Otherwise, you may have to reinstall and try again.
+
+The other possibility if you are booting of a SCSI or RAID disk is
+that your initrd image file might be corrupted.  The initrd file
+should be in your /boot directory and you should have a line in your
+/etc/lilo.conf that looks like the following:
+
+initrd=/boot/initrd-2.2.14-vmnix1.img
+
+This line must be associated with the boot image that you are trying to
+use to boot.  The initrd file is a file that contains a series of 
+device drivers that needed to be loaded so that you can boot.  If 
+you do not have this file in /boot and an entry in /etc/lilo.conf,
+your system may not be able to find the device drivers that it needs
+to boot off your SCSI/RAID disk.
+
+To create your own initrd file, you can use the mkinitrd command.
+For example, if you wanted to create a new initrd file for the vmnix
+kernel distributed with ESX, you can type
+
+/sbin/mkinitrd -f /boot/initrd-2.2.14-vmnix1.img 2.2.14-vmnix1
+
+Then you should modify your /etc/lilo.conf file to have the required
+line and rerun lilo to make the changes occur for the next time you
+boot.
+
+- After allocating some of my Ethernet adapters to the virtual machines,
+  my Console Ethernet adapter fails to come up.  What happened?
+
+When Ethernet adapters are taken away from the Console operating
+system and given to the virtual machines, the adapters are gone, but
+often the network settings were not changed to reflect the
+disappearance of the adapters.  The way Linux and the Console
+operating system name Ethernet devices is to give them a name of the
+form eth0, eth1, ... , eth<n> where <n> is one less than the number of
+Ethernet adapters that you have.  Each of these names is called an
+Ethernet interface.  Ethernet interface have their own IP address,
+gateway address, and other network settings.
+
+When you take away Ethernet devices, it is possible for the Ethernet
+interface names will change too.  For example, suppose you have 3
+Ethernet devices with corresponding Ethernet interfaces eth0, eth1,
+and eth2.  If you take the device corresponding to eth0 from the
+console operating system to the virtual machines, then the device that
+was interface eth1 will become eth0.  Similarly, the device that was
+interface eth2 will become eth1.  
+
+Linux and the Console operating system associate networking
+information with the Ethernet interfaces not the Ethernet device.  As
+a result, the networking settings may have changed per device.  In
+cases where the Ethernet devices are all of the same manufacturer and
+type, no problems will occur.  Problems will occur if the devices are
+not of the same type or the latter Ethernet interfaces (such as eth2
+in the previous example) were being used to access the network.  We
+will describe how to deal with the two cases.
+
+In the first case, the Ethernet devices are of two different
+manufacturers and type.  As a result, a different driver will most
+likely be needed by each device.  Look in the /etc/conf.modules file
+to see with driver is being loaded for each device.  You should see
+lines such as
+
+alias eth0 3c90x
+alias eth1 eepro100
+
+The Ethernet interface eth0 is expected to be bound to a 3Com 90x 
+Ethernet card and the interface eth1 is expected to be bound to an
+Intel EEPro card.  If the 3Com card was given to the virtual machines,
+the Intel card is now eth0.  You will have to modify the file so that
+eth0 is bound to the eepro100 driver.  The new file should say
+
+alias eth0 eepro100
+
+This change will ensure that your system will start automatically with
+the new settings the next time your machine boots.  To try to load the
+driver while the system is running, you can use the insmod(8) command.
+
+In the second case where the latter Ethernet interface was being used
+to access the network, you will have to migrate the networking
+configuration for each interface to the device's new interface name.
+For example, suppose you have Ethernet interfaces eth0, eth1, and eth2
+and wish to allocate the device bound to eth0 to the virtual machines.
+After allocating the device, the device bound to eth1 will be bound to
+eth0 and the device bound to eth2 will be bound to eth1.  If eth2 was
+being used to access the network, the network settings need to be
+changed along with the Ethernet interfaces.  To get the same network
+configuration, you will want to set the network settings for eth2 to 
+eth1 and for eth1 to eth0.  
+
+To make the change, you will have to go into the directory
+/etc/sysconfig/network-scripts.  In this directory, there are a series
+of files beginning with "ifcfg-eth."  There is one of these files for
+each Ethernet interface you have.  These files contain the network
+settings for a particular Ethernet interface.  To migrate the network
+settings, you will have to copy these files and give them new names
+corresponding to their new Ethernet interfaces.  In the case of the
+previous example, you should rename ifcfg-eth2 to ifcfg-eth1 and
+ifcfg-eth1 to ifcfg-eth0.
+
+Once you make this change you can try to restart your networking by
+running the command
+
+/etc/rc.d/init.d/network restart
+
+This command will stop your networking and restart it with the new
+settings.
+
+- What do I have to do when I add a new device to my system?
+
+Whenever a new device is added to the system, the system should 
+detect a change and automatically regenerate the configuration
+information.  The /etc/vmware/hwconfig file will be refreshed,
+but you may have to go back into pcidivy-www.pl to reallocate
+your devices.
+
+========================================
+(2) System Setup: vmware-config-www.pl
+========================================
+
+- What exactly does the vmware-config-www.pl script do?
+
+The vmware-config-www.pl program acts as a web front end for the
+program /usr/bin/vmware-config.pl.  Both programs perform basic setup
+tasks that need to be performed before the VMware ESX Server is
+started.  The scripts must be run after the Console operating system
+is booted.  The tasks that are performed by this script include
+
+1. Stop the VMware ESX Server if it is already running.
+2. Show the End User License Agreement/Notice if it has not already
+   been shown.
+3. Query the user for one of 4 configuration options.
+4. Start the VMware ESX Server.
+5. Show any other relevant Copyright information.
+
+We suggest that you use the defaults provided.
+
+- Why do I get a message saying that I must get rid of shared SCSI/RAID
+  mode and reboot?
+
+This error message appears because you have a SCSI/RAID device shared
+between the Console operating system and the virtual machines.  Once
+you have shared a SCSI/RAID device (yet another shared SCSI/RAID
+rule), you cannot stop the VMware ESX Server unless you reboot.
+However, the vmware-config-www.pl script requires that the VMware
+ESX Server is stopped before it can continue.
+
+Therefore, the only way to change the settings in the
+vmware-config-www.pl script is to make sure no SCSI/RAID devices are
+shared.  The only way to do that is to go back into pcidivy-www.pl,
+make sure no shared SCSI/RAID devices exist, and reboot.
+
+- When do I need to run the vmware-config-www.pl script?
+
+The vmware-config-www.pl script needs to be run the first time the
+system is installed.  It builds a database of appropriate settings and
+creates some important devices on your system.  If you wish to change
+one of the options that you set previously, you can come back to this
+page and change your settings.
+
+It also needs to be run if you upgrade your version of VMware ESX
+Server.
+
+
+========================================
+(3) Edit Partitions/Create VMFS: viewpart-www.pl
+========================================
+
+- What exactly does viewpart-www.pl do?
+
+The viewpart-www.pl script is used to help you setup your disks
+quickly to take advantage of the features offered by the VMFS file
+system.  The program detects what SCSI/RAID disks and partitions are
+available to the virtual machines and presents them to you.  For
+existing partitions, you can convert the partitions to VMFS file
+systems.  Be careful not to destroy partitions that may contain 
+important data.
+
+You can also create and delete partitions.  The buttons on this page
+will help you get started quickly.  However, if you need finer grained
+control over how your disks are allocated, you have the option of
+running the web-based fdisk by clicking on a button on this page.
+
+You can also use the command line version of fdisk.  See the section
+"How do I used the command line version of fdisk?" for more
+information about this option.
+
+- How do I use the command line verion of fdisk?
+
+To create more than one partition, you will need to use the
+/sbin/fdisk program that comes standard with virtually all Linux
+distributions.  The fdisk program allows you to create multiple
+partitions in a disk.  To get access to a disk, run 
+
+/sbin/fdisk `/usr/sbin/vmkfstools -N scsi1:4:0`
+
+The scsi1:4:0 refers to the disk on SCSI/RAID adapter scsi1, target id
+4.  The zero at the end refers to the entire disk, whereas a number
+would refer to a specific partition on the disk.
+
+Executing /usr/sbin/vmkfstools -N scsi1:4:0 causes the VMkernel to
+bind the SCSI/RAID disk to a /dev/vsd device on the console operating
+system.  Once bound, you can use this /dev/vsd device to access the
+SCSI/RAID disk from the Console operating system even if the disk was
+allocated to the virtual machines.  The only exception will be if a
+virtual machine is using a partition on the disk.  In that case, the
+partition will not be accessible to the Console operating system.
+
+In the case of SCSI/RAID disks that are shared between the Console
+operating system and the VMkernel, you cannot use the above command.
+Instead, you must use fdisk on a /dev/sd device.  The reason is that
+the VMkernel is not allowed to access the entire disk if it is shared
+between the Console operating system and the VMkernel.
+
+For more information about creating partitions and accessing the VMFS
+file system, see the README file or the man page on vmkfstools(1).
+
+- How do I create a VMFS file system without using viewpart-www.pl?
+
+There are at least two things that must be true in order for a VMFS
+file system to come into existence in a partition:
+
+1. The type of the partition must be set to 0xff.
+2. The VMFS must be formatted.
+
+To set the type of the partition to 0xff, you should use fdisk.  Once,
+you have set the partition type to 0xff, you can use the vmkfstools -C
+to format the VMFS.  Note that vmkfstools -C will fail if the type of
+the partition is not set to 0xff.  The web based script
+viewpart-www.pl automatically does both steps for you when you create
+a VMFS partition or convert a partition to a VMFS file system.
+
+- After creating a new VMFS file system, I created a disk.  When I start
+  the virtual machine using the disk, an operating system that I
+  installed earlier appears.  Why is it here?
+
+This should not happen anymore, but it used to happen in beta 1.
+
+- How do I create a vmkdump partition using the command line version
+  of fdisk?
+
+The vmkdump partition has a partition type of 0xfe.  Once you create
+this partition, you can use the command
+
+/usr/sbin/vmkdump -p scsi0:0:4
+
+to tell the VMkernel which partition to use.  You will need to know
+the SCSI name of the partition from the point of view of the VMkernel.
+This is not necessarily the same name that Linux sees.
+
+You can use the following command to determine what partitions can
+be used as a vmkdump partition.
+
+/usr/sbin/vmkpcidivy --query vmkdump_part
+
+Alternatively, you can just restart the system and let the startup
+scripts select the vmkdump partition for you.
+
+- How do I extract a vmkdump core and log file?
+
+If you created a vmkdump partition through the management-ui, the 
+vmkdump core and log file will be automatically extracted from
+the partition the next time you start the system.  
+
+To extract the core and log file by hand, you can use the command
+
+/usr/sbin/vmkdump -d /dev/sda
+
+This will create the core and log file in the current directory.
+You can add a -n option to only extract new core and log files.
+
+
+========================================
+(4) Virtual Machine Wizard: vmcfg-esx
+========================================
+
+- What exactly does vmcfg-esx do?
+
+The program vmcfg-esx creates a virtual machine by creating a new
+configuration file in a user's home directory.  For that reason, you
+may need to log in before being directed to the wizard page.  Once the
+virtual machine is created, it is registered with the system and the
+new virtual machine appears in the overview page of the management UI
+located at http://hostname:8222/overview.
+
+- Is RedHat 6.2 the only Linux guest operating system that I can install?
+
+No, virtually all distributions of Linux can be used as a guest
+operating system.  Many of them have been tested succesfully.  
+
+Only RedHat 7.0 is known to have problems working within a virtual
+machine.  RedHat 6.2 is also known to have a problem due to a bug in
+the Linux kernel.  See the Release Notes of the README file for more
+information about the known problems.
+
+- Can I also install Windows NT as a guest operating system?
+
+Yes.  Although it is not shown as an option, you can install any 
+virtual machine you choose.  Windows NT has been tested and can
+be installed as a guest operating system.  The only issue is that
+VMware networking has proven difficult to install under Windows NT.
+See the Release Notes of the README file for more information.
+
+- How do I add a virtual machine that I defined manually to the
+  overview page?
+
+The file /etc/vmware/vm-list is the list of the virtual machines on a
+machine.  You can add virtual machine names manually to this file and
+have it appear on the overview page.  However, you must have the
+appropriate file permissions to the virtual machine configuration file
+in order to view a virtual machine.
+
+To add an existing virtual machine to the overview page, you can add
+the line
+
+config "/home/vmware/vms/win2000/win2000.cfg"
+
+The line above adds a Windows 2000 virtual machine to the management
+UI.
+
+For more information about how to build your own virtual machine
+configuration file, see the README file.

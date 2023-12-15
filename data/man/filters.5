@@ -1,0 +1,62 @@
+.\" Copyright 2000 VMware, Inc.  All rights reserved.
+.\"
+.\" Print with groff -mandoc <thisfile> | lpr
+.Dd January 20, 2004
+.Dt filters 5
+.Os "VMware ESX Server" 2.1
+.Sh NAME
+.Nm filters
+.Nd VMware ESX Server network filters
+.Sh COPYRIGHT
+.if n VMware ESX Server is Copyright 2000 VMware, Inc.  All rights reserved.
+.if t VMware ESX Server is Copyright 2000 VMware, Inc.  All rights reserved.
+.Sh INTRODUCTION
+VMware ESX Server supports network packet filters as loadable modules.
+In general, network packets may be inspected, modified, dropped, or
+forwarded through a filter.  A loadable module defines a \fIfilter
+class\fP; multiple \fIfilter instances\fP may be active for each
+loaded class.
+.Pp
+The current release allows transmit filters to be attached to virtual
+machines (VMs) using a procfs interface.  The following section 
+describes how to attach, detach, and query filter instances.
+.Pp
+.Sh DESCRIPTION
+.Bl -tag -width xxxx
+.It Pa /proc/vmware/filters/status
+Reading from this file reports network filtering status information,
+including a list of all available filter classes, and for each VM
+with attached filters, its list of attached filter instances.
+.Pp
+.It Pa /proc/vmware/filters/xmitpush
+Command file used to add a new transmit filter instance to a VM.
+Writing \fIid class [args]\fP to this file attaches a new instance
+of filter \fIclass\fP instantiated with \fIargs\fP to the VM 
+identified by \fIid\fP.
+.Pp
+.It Pa /proc/vmware/filters/xmitpop
+Command file used to detach a transmit filter from a VM.  
+Writing \fIid\fP to this file detaches the last filter attached
+to the VM identified by \fIid\fP.
+.Pp
+.It Pa /proc/vmware/filters/xmit
+This directory contains a file for each active filter instance.  Each
+file named \fIclass.n.id\fP corresponds to the \fIn\fPth instance of
+filter class \fIclass\fP, which is attached to the VM identified by
+\fIid\fP.
+.Pp
+Reading from a file reports status information for the filter instance
+in a class-defined format.  Writing to a file issues a command to
+the filter instance using a class-defined syntax.
+.El
+.Pp
+.Sh CAVEATS
+The current release allows only a single network packet filter to be
+attached to each VM.  This restriction will be removed if VMware
+distributes multiple filter classes; currently the only supported
+filter class is the \fInfshaper\fP traffic shaping module.
+.Pp
+Receive filters are not yet implemented.
+.Pp
+.Sh SEE ALSO
+nfshaper(8), vmkload_mod(1)

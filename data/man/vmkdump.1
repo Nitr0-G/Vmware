@@ -1,0 +1,90 @@
+.\" Copyright 2000 VMware, Inc.  All rights reserved.
+.\"
+.\" Print with groff -mandoc <thisfile> | lpr
+.Dd October 28, 2004
+.Dt vmkdump 1
+.Os VMnix
+.Sh NAME
+.Nm vmkdump
+.Nd VMkernel dumper
+.Sh SYNOPSIS
+.Nm vmkdump
+\fIOPTIONS\fR
+.Sh COPYRIGHT
+.if n VMware ESX Server is Copyright 2004 VMware, Inc.  All rights reserved.
+.if t VMware ESX Server is Copyright 2004 VMware, Inc.  All rights reserved.
+.Sh DESCRIPTION
+vmkdump manages the VMkernel dump partition.
+.Sh OPTIONS
+.br
+\fB-p, --partition\fR adapter:target:lun:partition
+.br
+    Specify the partition where the VMkernel should dump the compressed
+    core.  The dump partition must be specified after the appropriate
+    disk adapter has been loaded into the VMkernel.
+
+\fB-q, --query\fR
+.br
+    Print out the current dump partition.
+
+\fB-d, --devname deviceName\fR
+.br
+    Specify the Linux console device that should be used to read the 
+    VMkernel dump.  Note: This option should not be used after the dump
+    partition has been set with the -p option.  If the partition has
+    been set, you need to stop and reset the VMkernel before using this
+    option.
+
+\fB-n, --newonly\fR
+.br
+    For each VMkernel dump that is produced, a count is kept of the
+    number of times the compressed dump file has been read off the dump
+    partition.  When this option is specified, the compressed dump will
+    only be read off the dump partition if the read count is zero.
+
+\fB-z, --zdumpname compressedFileName\fR
+.br
+    When reading from the dump partition, this option specifies the name
+    of the file to create with the compressed dump.  By default the name
+    is vmkernel-zdump.#, where # is a unique number.
+
+\fB-s, --slot slotnum\fR
+.br
+    On dump partitions that reside on shared storage, multiple machines
+    can share the dump partition.  Because of this, the dump partition is
+    split up into multiple slots.  Generally, when retrieving a core
+    dump, the physical machine's UUID is hashed into a slot number based
+    on the total number of slots, and the compressed dump is
+    automatically read from that slot.  However, there may be situations
+    where the machine that dumped core is no longer able to retrieve core
+    dumps.  In those cases, this option can be used to override the
+    normal UUID hash algorithm for determining a slot.  Note that the
+    slot used during a core dump will be displayed on the PSOD.
+
+\fB-x, --extract compressedFileName\fR
+.br
+    After the compressed dump has been copied off the dump partition to a
+    file, this option can be used to extract and decompress the core and
+    log.  The core and log will be created in files named vmkernel-core.#
+    and vmkernel-log.#, respectively, where # is a unique number, not
+    necessarily the same for both files.
+
+.Sh EXAMPLES
+
+vmkdump -p vmhba0:0:0:3
+
+    Sets the dump partition to scsi adapter 0, target 0, lun 0,
+    partition 3.
+
+vmkdump -d /dev/sda3
+
+    Creates a file name vmkernel-zdump.# contained a compressed dump.
+    # is 1 if no other compressed dumps are in the current
+    directory, otherwise # is the lowest unused integer (ie, if up to
+    vmkernel-zdump.5 exist, then it would create vmkernel-zdump.6).
+
+vmkdump -x vmkernel-zdump.1
+
+    Extracts the core and log from vmkernel-zdump.1 into vmkernel-core.#
+    and vmkernel-log.#, respectively, where # for each file may not be
+    the same.

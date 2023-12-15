@@ -1,0 +1,50 @@
+.\" Copyright 2003 VMware, Inc.  All rights reserved.
+.\"
+.\" Print with groff -mandoc <thisfile> | lpr
+.Dd April 29, 2003
+.Dt vmkload_app 1
+.Os VMnix
+.Sh NAME
+.Nm vmkload_app
+.Nd VMkernel user-world application loader
+.Sh SYNOPSIS
+.Nm vmkload_app
+\fIOPTIONS\fR \fIAPP\fR \fIAPPPARAMS\fR
+.Sh COPYRIGHT
+.if n VMware ESX Server is Copyright 2003 VMware, Inc.  All Rights Reserved.
+.if t VMware ESX Server is Copyright 2003 VMware, Inc.  All Rights Reserved.
+.Sh DESCRIPTION
+vmkload_app is a program that is used to load applications into new Worlds
+in the VMkernel.  The given APP is copied into a new World and
+started up.  vmkload_app waits for the APP to terminate, and will
+relay the standard output of the APP to its standard output.
+.br
+
+.br
+.Sh OPTIONS
+.br
+\fB-b\fR
+.br
+\fB--break\fR
+.br
+    Break into GDB when the app starts
+
+\fB-t X\fR
+.br
+\fB--trace X\fR
+.br
+    Set the vmkload_app tracing bits to X (an integer)
+
+\fB-s\fR
+.br
+\fB--strace\fR
+.br
+    Enable vmksyscall tracing
+
+\fB-h\fR
+.br
+\fB--help\fR
+.br
+    Display help	
+
+

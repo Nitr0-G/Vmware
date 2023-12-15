@@ -1,0 +1,348 @@
+.\" Copyright 2000 VMware, Inc.  All rights reserved.
+.\"
+.\" Print with groff -mandoc <thisfile> | lpr
+.Dd January 20, 2004
+.Dt cpu 8
+.Os "VMware ESX Server" 2.1
+.Sh NAME
+.Nm cpu
+.Nd VMware ESX Server CPU resource management
+.Sh COPYRIGHT
+.if n VMware ESX Server is Copyright 2000 VMware, Inc.  All rights reserved.
+.if t VMware ESX Server is Copyright 2000 VMware, Inc.  All rights reserved.
+.Sh INTRODUCTION
+VMware ESX Server provides dynamic control over both the execution
+rate and the processor assignment of each scheduled virtual machine
+(VM).
+.Pp
+Proportional-share scheduling enables intuitive control over execution
+rates.  Each scheduled VM is allocated a number of \fIshares\fP that
+entitle it to a fraction of processor resources.  For example, a VM
+that is allocated twice as many shares as another is entitled to
+consume twice as many CPU cycles.  In general, a runnable VM with
+\fIS\fP shares on a system with an overall total of \fIT\fP shares is
+guaranteed to receive at least a fraction \fIS\fP / \fIT\fP of the
+system CPU time.
+.Pp
+An administrator can control relative CPU rates by specifying the
+number of shares allocated to each VM.  The system automatically keeps
+track of the total number of shares \fIT\fP.  Increasing the number of
+shares allocated to a VM will dilute the effective value of \fIall\fP
+shares by increasing \fIT\fP.
+.Pp
+A VM may under-utilize its allocation by idling when it is not
+busy. This extra time is not wasted; rather it is shared among VMs
+that remain active. Thus, a VM may receive more than its fair
+allocation of the system.
+.Pp
+Absolute guarantees for minimum and maximum CPU rates can also be
+specified. If a \fImin\fP CPU reservation is set on a VM, that VM will
+receive at least \fImin\fP% of a processor, regardless of changes in
+the total number of shares in the system. If the system does not have
+enough unreserved CPU time available to guarantee the \fImin\fP
+requirement of a VM, that VM will not be able to power on. A \fImax\fP
+reservation guarantees that a VM will never receive more than
+\fImax\fP% of a processor, even if extra time is available in the
+system.
+.Pp
+In multiprocessor systems, an administrator can restrict the
+assignment of virtual machines to a subset of the available processors
+by specifying an \fIaffinity\fP set for each VM. A VM will only run on
+processors included in its affinity set. While the scheduler will
+attempt to maintain fairness for all VMs, affinity constraints may
+make this impossible (for instance, if several VMs with a large number
+of shares are all affinity-bound to the same processor).
+.Pp
+The current release allows CPU shares and affinity sets to be
+specified and modified dynamically at any time using a simple
+command-line interface on the Service Console, or through the
+web-based VMware Management Interface.  Initial values for a VM may
+also be specified in its configuration file.
+.Pp
+ESX Server supports systems with Intel's Hyper-Threading technology.
+For the most part, use of Hyper-Threading technology should be transparent
+to the system administrator. However, there are advanced configuration
+options available to customize the use of Hyper-Threading. See \fIhyperthreading(8)\fP
+for more details.
+.Pp
+.Sh DESCRIPTION
+.Pp
+.Ss VM Configuration File Options
+.Pp
+.Bl -tag -width xxxx
+.It Pa sched.cpu.shares = n
+Specifies the initial CPU share allocation for a VM to be \fIn\fP shares.
+The valid range of numeric values for \fInshares\fP is 1 to 100000,
+enabling a large range of allocation ratios.  The special named values
+\fIlow\fP, \fInormal\fP, and \fIhigh\fP may also be used.  These named
+values are converted into numbers automatically, using the
+configurable ESX Server options \fICpuSharesPerVcpuLow\fP,
+\fICpuSharesPerVcpuNormal\fP, and \fICpuSharesPerVcpuHigh\fP,
+described below.  The default allocation is \fInormal\fP, which by
+default is 1000 shares per virtual CPU, i.e., 1000 shares for a
+uniprocessor VM, or 2000 shares for an SMP VM with 2 virtual CPUS.
+.Pp
+.It Pa sched.cpu.affinity = set
+Specifies the initial processor affinity set for a VM.  If \fIset\fP
+is \fIall\fP or \fIdefault\fP, then the affinity set contains all
+available processors.  The \fIset\fP may alternatively be a
+comma-separated list of CPU numbers such as "0,2,3". For an
+SMP VM, this affinity set will apply to all virtual CPUs.
+.Pp
+.It Pa sched.cpu.min = min
+Specifies the initial minimum CPU reservation for the VM, which
+guarantees that the VM will receive at least \fImin\fP% of a
+processor. If there is not sufficient unreserved processor time
+available to meet this guarantee, the VM will not be able to power
+on. Note that this value may be greater than 100 for SMP VMs that are
+to be guaranteed more than one full physical CPU. The default
+\fImin\fP is 0.
+.Pp
+.It Pa sched.cpu.max = max
+Specifies the maximum allowable percentage of a processor that this VM
+is permitted to consume. Even if extra, unused time is available in
+the system, the VM will not consume more than \fImax\fP% of a
+processor. Note that this value may be greater than 100 for SMP VMs
+that are permitted to use more than one full physical CPU. The
+default \fImax\fP is 100 times the number of virtual CPUs in the VM..
+.El
+.Pp
+.Ss Service Console Interface
+.Pp
+All of the following values can be changed at any time by issuing the
+command "\fIecho newvalue > procfilename\fP" on the Service Console command
+line, where \fInewvalue\fP is replaced by the value to which you wish
+to set the option and \fIprocfilename\fP is replaced by the full path
+name of the configuration option's proc entry.
+.Pp
+For SMP VMs, you can use the \fIid\fP of any of the VM's virtual CPUs
+to view or change per-VM configuration options.
+.Pp
+.Bl -tag -width xxxx
+.It Pa /proc/vmware/vm/id/cpu/shares
+Reading from this file reports the number of shares allocated
+to the VM identified by \fIid\fP.
+.Pp
+Writing a number \fIn\fP to this file changes the number of shares
+allocated to the VM identified by \fIid\fP to \fIn\fP.  The valid
+range of numeric values for \fInshares\fP is 1 to 100000.  The special
+named values \fIlow\fP, \fInormal\fP, and \fIhigh\fP may also be used.
+These named values are converted into numbers automatically, using the
+configurable ESX Server options \fICpuSharesPerVcpuLow\fP,
+\fICpuSharesPerVcpuNormal\fP, and \fICpuSharesPerVcpuHigh\fP,
+described below.
+.Pp
+.It Pa /proc/vmware/vm/id/cpu/affinity
+Reading from this file reports the number of each CPU in the 
+current affinity set for the VM identified by \fIid\fP.
+.Pp
+Writing a comma-separated list of CPU numbers to this file, such
+as "0,2,3", changes the affinity set for the VM identified by
+\fIid\fP.  Writing \fIall\fP or \fIdefault\fP to this file changes the
+affinity set to contain all available processors. For an SMP VM, this
+will confine all virtual CPUs to the specified affinity set.
+.Pp
+.It Pa /proc/vmware/vm/id/cpu/min
+Reading from this files reports the \fImin\fP CPU
+reservation for the VM identified by \fIid\fP, as described for the
+\fIsched.cpu.min\fP config file option.
+Writing a number to this file will change the \fImin\fP
+CPU reservation for the VM identified by \fIid\fP. If
+there is not enough unreserved CPU time available in the system to
+satisfy a demand for an increase in \fImin\fP, the reservation may not
+be changed.
+.Pp
+.It Pa /proc/vmware/vm/id/cpu/max
+Reading from this files reports the \fImax\fP CPU
+reservation for the VM identified by \fIid\fP, as described for the 
+\fIsched.cpu.max\fP config file option.
+Writing a number to this file will change the \fImax\fP
+CPU reservation for the VM identified by \fIid\fP.
+.Pp
+.It Pa /proc/vmware/sched/cpu
+Reading from this file reports detailed status information for all VMs
+in the entire system. Each virtual CPU is displayed on its own line,
+with information regarding uptime, time used, and resource management
+parameters.
+.Pp
+.It Pa /proc/vmware/vm/id/cpu/status
+This file provides CPU status information on the VM identified by
+\fIid\fP. It is equivalent to the \fI/proc/vmware/sched/cpu\fP file,
+but only for a single VM, rather than showing an aggregate view.
+.Pp
+.It Pa /proc/vmware/config/Cpu/SharesPerVcpuLow
+VMware ESX Server option used to convert the special named shares
+value \fIlow\fP into a number, expressed in shares per virtual CPU.
+Defaults to 500.
+.Pp
+.It Pa /proc/vmware/config/Cpu/SharesPerVcpuNormal
+VMware ESX Server option used to convert the special named shares
+value \fInormal\fP into a number, expressed in shares per virtual CPU.
+Defaults to 1000.
+.Pp
+.It Pa /proc/vmware/config/Cpu/SharesPerVcpuHigh
+VMware ESX Server option used to convert the special named shares
+value \fIhigh\fP into a number, expressed in shares per virtual CPU.
+Defaults to 2000.
+.El
+.Pp
+.Sh EXAMPLES
+.Pp
+.Ss CPU Statistics
+.Pp
+The current CPU statistics for a virtual machine can be read from
+its corresponding status file.  For example, to view the statistics
+for the VM with id 137:
+.Pp
+.nf
+.if t .ft CW
+  % cat /proc/vmware/vm/137/cpu/status
+vcpu   vm type name            uptime status   costatus    usedsec   syssec
+ 137  137 V    vmm0:Win@kAS   357.866    RUN        RUN    265.143    3.105
+.Pp
+wait   waitsec cpu affinity   htsharing  min  max shares emin   extrasec
+NONE    51.783   0 0,1        any          0  200   2000   72     124.758
+.if t .ft P
+.fi
+.Pp
+The output above is shown with additional line breaks, in order
+to avoid wrapping long lines.  All times are reported in seconds,
+with millisecond resolution.  Min and max percentages are reported as
+a percentage of single processor.  The columns indicate:
+.Pp
+.Bl -tag -compact -width extrasecxx -offset xxxx
+.It Pa vcpu
+virtual cpu identifier
+.It Pa vm
+virtual machine identifier
+.It Pa type
+Type of vcpu: "V" for virtual machine, "S" for system vcpu, "I" for
+dedicated idle vcpu, "H" for helper, or "C" for service console. A
+vcpu may have multiple types. For instance, the idle vcpus are also
+system vcpus, so they have type "SI."
+.It Pa name
+display name associated with VM
+.It Pa uptime
+elapsed time since VM powered on
+.It Pa status
+current vcpu run state: 
+running (RUN),
+ready to run (READY),
+waiting on an event (WAIT or WAITB),
+terminating (ZOMBIE);
+additional states for SMP VMs:
+ready with pending co-schedule (CORUN),
+ready but co-descheduled (COSTOP)
+.It Pa costatus
+current SMP VM co-scheduling state:
+uniprocessor VM (NONE),
+ready to run (READY),
+co-scheduled (RUN),
+co-descheduled (STOP)
+.It Pa usedsec
+cumulative processor time consumed by vcpu
+.It Pa syssec
+cumulative system time consumed by vcpu 
+.It Pa wait
+current vcpu wait event type:
+not waiting (NONE),
+idle (IDLE),
+filesystem (FS),
+swap (SWPA, SWPS),
+remote procedure call (RPC),
+waiting for request (RQ),
+etc.
+.It Pa waitsec
+cumulative vcpu wait time
+.It Pa cpu
+current vcpu processor assignment
+.It Pa affinity
+processor affinity for vcpu
+.It Pa htsharing
+hyperthreading sharing settings. See \fBhyperthreading(8)\fP for more
+details.
+.It Pa min
+minimum processor percentage reservation for VM
+.It Pa max
+maximum processor percentage reservation for VM
+.It Pa shares
+cpu shares allocation for VM
+.It Pa emin
+effective minimum percentage allocation for VM
+.It Pa extrasec
+cumulative processor consumption above emin by VM
+.El
+.Pp
+In this example, VM 137 is an SMP VM with two virtual cpus.  The
+output shows statistics associated with its first virtual cpu (``vmm0''),
+identified as vcpu 137 with a configured display name that begins with
+``Win2kAS''.  The virtual cpu is currently running on processor 0, and
+is currently co-scheduled with the second vcpu associated with this VM.
+The vcpu has been up for about 357 seconds, during which time it has
+consumed about 265 seconds of processor time, of which about 3 seconds
+was ESX Server system time (such as processing interrupts on behalf of
+the VM).  The virtual cpu is not currently waiting, but has waited for
+a total of about 52 seconds since it has powered on.  Together, both
+of the VM's virtual cpus are allowed to use between 0 and 2 physical
+processors (min=0%, max=200%).  The VM's allocation of 2000 shares
+currently entitles it to consume processor time equivalent to 72% of a
+single processor.  Since powering on, the VM has received about 124
+seconds of cpu time above its entitlement, consuming ``extra'' time
+leftover from other VMs that did not fully utilize their allocations.
+.Pp
+.Ss CPU Allocations
+.Pp
+Suppose that we are interested in the CPU allocation for the virtual
+machine with VM id 133.  To query the number of shares allocated
+to VM 133, simply read the file:
+.Pp
+.nf
+    % cat /proc/vmware/vm/133/cpu/shares
+    1000
+.fi
+.Pp
+This indicates that VM 133 is currently allocated 1000 shares.
+To change the number of shares allocated to VM 133, simply write to
+the file.  Note that you need root privileges in order to change share
+allocations:
+.Pp
+.nf
+    # echo 2000 > /proc/vmware/vm/133/cpu/shares
+.Pp
+.fi
+The change can be confirmed by reading the file again:
+.Pp
+.nf
+    % cat /proc/vmware/vm/133/cpu/shares
+    2000
+.fi
+.Pp
+To query the affinity set for VM 133, simply read the file:
+.Pp
+.nf
+    % cat /proc/vmware/vm/133/cpu/affinity
+    0,1
+.fi
+.Pp
+This indicates that VM 133 is allowed to run on CPUs 0 and 1.
+To restrict VM 133 to run only on CPU 1, simply write to the file.
+Note that you need root privileges in order to change affinity sets:
+.Pp
+.nf
+    # echo 1 > /proc/vmware/vm/133/cpu/affinity
+.Pp
+.fi
+The change can be confirmed by reading the file again.
+.Pp
+.Sh CAVEATS
+CPU share allocations do not necessarily guarantee VM progress rates.
+For example, suppose VM 133 has 2000 shares, while VM 134 is allocated
+1000 shares.  If both VMs are CPU-bound, running a
+computationally-intensive benchmark, for instance, then VM 133 should
+indeed run twice as fast as VM 134. However, if VM 133 instead runs
+an I/O-bound workload that causes it to block waiting for other
+resources, it will not run twice as fast as VM 133, even though it is
+allowed to use twice as much CPU time.
+.Pp
+.Sh SEE ALSO
+mem(8), diskbw(8), numa(8)

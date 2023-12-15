@@ -1,0 +1,130 @@
+.\" Copyright 2000 VMware, Inc.  All rights reserved.
+.\"
+.\" Print with groff -mandoc <thisfile> | lpr
+.Dd August 14, 2003
+.Dt diskbw 8
+.Os "VMware ESX Server" 2.0
+.Sh NAME
+.Nm diskbw
+.Nd VMware ESX Server disk bandwidth resource management
+.Sh COPYRIGHT
+.if n VMware ESX Server is Copyright 2000 VMware, Inc.  All rights reserved.
+.if t VMware ESX Server is Copyright 2000 VMware, Inc.  All rights reserved.
+.Sh INTRODUCTION
+VMware ESX Server provides dynamic control over the relative amount of disk
+bandwidth allocated to each virtual machine (VM).  The control of disk
+bandwidth is done separately for each disk. The system manages the
+allocation of disk bandwidth to VMs automatically based on allocation
+parameters and system load. This is done in a way that maintains fairness
+and tries to maximize throughput.
+.Pp
+Initial disk bandwidth allocation values for a VM may be specified in
+its configuration file.  An administrator may also modify disk
+bandwidth allocation parameters dynamically using the VMware
+Management Interface, the Service Console procfs interface, or the
+Perl API.  Reasonable defaults are used automatically when parameters
+are not specified explicitly.  Information about current disk
+bandwidth allocations and other status is also available via the
+Management Interface, the Service Console procfs interface, and the
+Perl API.
+.Pp
+.Ss Allocation Policy
+.Pp
+VMware ESX Server uses a modified proportional-share allocation policy for
+controlling disk bandwidth per VM.  This policy attempts to control the
+disk bandwidth used by a VM to access a disk, while also trying to maximize
+throughput to the disk. Disk bandwidth shares entitle a VM to a fraction of
+the bandwidth to a disk.  For example, a VM that has twice as many shares
+as another for a particular disk is entitled to consume twice as much
+bandwidth to the disk, provided that they are both actively issuing
+commands to the disk. Bandwidth consumed by a VM is represented in
+consumption units. Every SCSI command issued to the disk effectively
+consumes one unit by default and additional units proportional to the size
+of the data transfer associated with the command.
+.Pp
+Throughput to the disk is maximized through the use of a ``quantum'' of disk
+requests from a VM to a disk. A VM is allowed to issue as many as a quantum
+of requests to a disk without being preempted by another VM.  The issuing
+of a quantum is applicable only if the requests in the quantum are
+``sequential'' on the disk.
+.Pp
+.Sh DESCRIPTION
+.Pp
+.Ss VM Configuration File Options
+.Bl -tag -width xxxx
+.It Pa scsi0:1.name = fsname:xyz.dsk
+This is the standard method to specify the VMFS file underlying a virtual disk.
+.Pp
+.It Pa sched.scsi0:1.shares = n
+This configuration file option specifies the initial disk bandwidth
+share allocation for a VM for the specified disk (in this case,
+\fIscsi0:1\fP) to be \fIn\fP shares.  The valid range of numeric
+values for \fIn\fP is 1 to 100000, enabling a large range of
+allocation ratios.  The special named values \fIlow\fP, \fInormal\fP,
+and \fIhigh\fP may also be used.  These named values are converted
+into numbers automatically, using the configurable ESX Server options
+\fIDiskSharesLow\fP, \fIDiskSharesNormal\fP, and \fIDiskSharesHigh\fP,
+described below.  The default allocation is \fInormal\fP, which
+by default is 1000 shares.
+.Pp
+Note that it is possible to specify the shares multiple times for a
+particular disk in a configuration file. In this case, the last value
+specified is used.
+.El
+.Ss Service Console Interface
+.Pp
+.Bl -tag -width xxxx
+.It Pa /proc/vmware/vm/id/disk/vmhbax:y:z
+Reading from this file reports the number of disk bandwidth shares allocated
+to the VM identified by \fIid\fP for the disk identified by vmhbax:y:z, and
+disk usage statistics.
+.Pp
+Writing a number \fIn\fP to this file changes the number of disk
+bandwidth shares allocated to the VM identified by \fIid\fP to
+\fIn\fP.  The valid range of numeric values for \fInshares\fP is 1 to
+100000.  The special named values \fIlow\fP, \fInormal\fP, and
+\fIhigh\fP may also be used.  These named values are converted into
+numbers automatically, using the configurable ESX Server options
+\fIDiskSharesLow\fP, \fIDiskSharesNormal\fP, and \fIDiskSharesHigh\fP,
+described below.
+.Pp
+.It Pa /proc/vmware/config/DiskSchedNumReqOutstanding
+VMware ESX Server option that specifies the number of oustanding commands
+allowed to a disk when there is more than one world competing for bandwidth
+to this disk. Defaults to 16. Larger sizes may impair the ability of
+ESX server to provide fair allocation of disk bandwidth.
+.Pp
+.It Pa /proc/vmware/config/DiskSchedQuantum
+VMware ESX Server option that specifies the number of sequential requests
+that a VM may issue to a disk without being pre-empted by another VM.
+Defaults to 8.
+.Pp
+.It Pa /proc/vmware/config/DiskSharesLow
+VMware ESX Server option used to convert the special named shares
+value \fIlow\fP into a number.  Defaults to 500.
+.Pp
+.It Pa /proc/vmware/config/DiskSharesNormal
+VMware ESX Server option used to convert the special named shares
+value \fInormal\fP into a number.  Defaults to 1000.
+.Pp
+.It Pa /proc/vmware/config/DiskSharesHigh
+VMware ESX Server option used to convert the special named shares
+value \fIhigh\fP into a number.  Defaults to 2000.
+.El
+.Pp
+.Sh EXAMPLES
+.Ss Configuration file snippet
+.nf
+scsi0.virtualdev = vmxbuslogic
+scsi0:1.present = TRUE
+scsi0:1.name = vmhba0:2:0:5:rh6.2.dsk
+scsi0:1.mode = persistent
+sched.scsi0:1.shares = high
+.Pp
+scsi0:2.present = TRUE
+scsi0:2.name = scratchfs:scratch1.dsk
+sched.scsi0:2.shares = 800
+.fi
+.Pp
+.Sh SEE ALSO
+cpu(8), mem(8), numa(8)

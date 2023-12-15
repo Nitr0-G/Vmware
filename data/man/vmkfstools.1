@@ -1,0 +1,335 @@
+.\" Copyright 2000 VMware, Inc.  All rights reserved.
+.\"
+.\" Print with groff -mandoc <thisfile> | lpr
+.Dd June 8, 2003
+.Dt vmkfstools 1
+.Os VMnix
+.Sh NAME
+.Nm vmkfstools
+.Nd VMware ESX Server file system management on SCSI disks
+.Sh SYNOPSIS
+.Nm vmkfstools
+\fIOPTIONS\fR 
+.Nm vmkfstools
+\fIOPTIONS\fR \fIPATH\fR
+.Nm vmkfstools
+\fIOPTIONS\fR \fIDEVICE[:FILE]\fR
+.Sh COPYRIGHT
+.if n VMware ESX Server is Copyright 2000 VMware, Inc.  All rights reserved.
+.if t VMware ESX Server is Copyright 2000 VMware, Inc.  All rights reserved.
+.Sh DESCRIPTION
+vmkfstools is a program for creating and manipulating files on SCSI disks
+(or LUNs) managed by the VMware ESX Server.  It supports the creation of a
+VMware ESX Server File System (VMFS) on a SCSI disk or partition, and the
+management of files stored in the VMFS.  It is useful for storing multiple
+virtual disk images on a partition of a SCSI disk.
+
+vmkfstools can be used on VMFS partitions of type 0xfb or on VMware Core
+Dump partitions of type 0xfc. A disk partitioning utility like sfdisk(8)
+or fdisk(8) can be used to create partitions of type 0xfb or 0xfc.
+vmkfstools can also be used on the disk as a whole instead of individual
+partitions on the disk.
+
+OPTIONS is one or more command-line options that specify the operation.
+The file or VMFS file system being manipulated may be specified after the
+options in one of two different ways -- via a SCSI device specification
+optionally followed by a file name, or via a VMFS path name.
+
+In the first way, DEVICE specifies a SCSI device (SCSI disk or partition
+of SCSI disk) being manipulated.  DEVICE is specified in a form such as:
+
+vmhba1:2:0:3
+
+Here, 'vmhba1' specifies the second SCSI adapter activated when ESX Server
+was initialized and drivers were loaded.  The second number specifies the
+target on the adapter, the third number specifies the LUN (logical unit
+number), and the fourth number specifies the partition.  If the partition
+number is zero, then the whole disk is implied.  Otherwise, the indicated
+partition is specified.  DEVICE may also be a VMFS file system volume
+label, as set with the '--setfsname' option below.  FILE is the name of a
+VMFS file stored in the filesystem on the specified device.
+
+In the second way of specifying a VMFS file system or file, PATH should be
+a path that names a directory or a file under /vmfs.  For example, a VMFS
+file system could be specified via a path such as:
+
+/vmfs/vmhba1:2:0:3
+
+A VMFS file system name can also be used to specify a particular VMFS.  A
+specific VMFS file would be specified via a path such as '/vmfs/lun1/rh9.dsk'.
+
+.Sh OPTIONS
+The long and short forms of options, shown here listed together, are
+equivalent.
+
+.br
+\fB-C\fR, \fB--createfs\fR [vmfs1|vmfs2]
+.br
+\fB-b\fR, \fB--blocksize\fR #[mMkK]
+.br
+\fB-n\fR, \fB--numfiles\fR #
+    create a VMFS version 1 or version 2 file system on the specified
+    SCSI device. 'vmfs2' or VMware File System, version 2, contains
+    features not available in the older file system, 'vmfs1'. However,
+    unlike 'vmfs1', 'vmfs2' is not backward compatible with ESX1.x
+    servers.  The file block size can be specified via the '-b' option.
+    The default file block size is 1 Mbyte.  The block size must be at
+    least 1 Mbyte and must be a power of two. The maximum blocksize for
+    VMFS-2 is 256MB and that for VMFS-1 is 16MB. The maximum number of
+    files in the file system can be specified with the '-n' option. 
+    The default maximum is 256 files.
+
+\fB-Z\fR, \fB--extendfs\fR extension-SCSIDevice
+.br
+\fB-n\fR, \fB--numfiles\fR #
+    extend an existing logical VMFS-2 volume starting at the
+    specified SCSI device by adding another physical extent designated
+    by 'extension-SCSIDevice'. The extended logical file system supports
+    twice the number of files as the original one. A logical VMFS-2 file
+    system can have at most 32 physical extents. This operation is not
+    supported on the VMFS-1 file system and will return an error if the
+    specified SCSI device is formatted as VMFS-1. Everytime a VMFS-2
+    volume is extended with a physical extent, the volume will
+    support 64 additional files. This can be changed by using the
+    '-n' option.
+
+\fB-S\fR, \fB--setfsname\fR fsName
+    set the label of a VMFS volume on the specified SCSI device.
+    This volume label can then be used to specify a VMFS volume in
+    subsequent vmkfstools commands or in a virtual machine
+    configuration file.  The name will also appear in a listing
+    produced by 'vmkfstools -l', and as a symbolic link to the VMFS
+    volume under the /vmfs directory. VMFS volume labels can be up to
+    31 characters long. They cannot contain the ':' character, and
+    leading or trailing whitespaces.
+
+\fB-F\fR, \fB--config\fR [public|shared|writable]
+    set the VMFS file system on the specified SCSI device to the
+    specified access mode.  The default mode of a VMFS file system is
+    'public'. A 'public' VMFS-1 volume can be accessed by multiple
+    ESX servers (provided the volume is on shared storage, for e.g.,
+    a storage area network), but only by one ESX server at a time.
+    A 'public' VMFS-2 volume can be accessed by multiple ESX servers
+    concurrently. VMFS file systems with the 'public' mode will have
+    automatic locking to ensure file system consistency.  A VMFS
+    file system that will be used for failover-based clustering should
+    have its mode set to 'shared'.  This mode will allow virtual
+    machines on multiple servers to access the same VMFS file
+    simultaneously.  However, when the virtual machines access a file
+    in a 'shared' VMFS, the file system meta-data will become
+    read-only.  That is, it will not be allowed to create, delete, or
+    change the attributes of a file.  When virtual machines are no
+    longer accessing the VMFS file system, the file system meta-data
+    can be made writable again by invoking 'vmkfstools --config
+    writable'.
+
+\fB-l\fR, \fB--list\fR
+.br
+\fB-h\fR, \fB--human-readable\fR
+.br
+\fB-M\fR, \fB--verbosemappings\fR
+    list the files on the file system on the specified device,
+    including their permissions, sizes, and last-modified times.
+    The 'h' option causes sizes to be printed in a more human-readable
+    format (such as 5k, 12.1M, or 2.1G). The 'M' option prints out the
+    vmhba name corresponding to each raw disk mapping.
+
+\fB-P\fR, \fB--querypartitions\fR
+    list the attributes of a VMFS volume or a raw disk mapping. When used
+    on a VMFS volume name, it lists out the VMFS version number, the
+    number of physical extents (partitions) constituting the specified
+    VMFS volume, the volume label (if any), UUID (if any), and a listing
+    of the SCSI device names of all the partitions constituting the
+    volume. When used with a 'VMFS_volume:fileName' specification, it
+    prints out the vmhba name of the raw disk/partition corresponding to
+    the mapping referenced by 'fileName'. It also prints out
+    identification information for the raw disk (if any).
+
+\fB-T\fR, \fB--tovmfs2\fR
+    convert a VMFS-1 volume on the specified partition to VMFS-2 format,
+    preserving all files on the volume. The conversion is in-place.
+    The ESX server file system locking mechanisms will try to ensure
+    that no local process or remote ESX Server is currently accessing the
+    VMFS volume to be converted. The conversion is a one-way operation.
+    Once a VMFS-1 volume is converted to VMFS-2 format, it cannot be
+    rolled back to VMFS-1 format.
+
+\fB-R\fR, \fB--recover\fR
+    recover a VMFS file system (that is accessible by multiple ESX
+    servers) when other vmkfstools commands indicate that the file
+    system is locked by another ESX server, but no other server is
+    currently accessing.  This situation may happen if the VMFS file
+    system was being accessed by a server (e.g. running a virtual
+    machine or accessing the VMFS via /vmfs) and that server
+    crashed.  You should only use this command if you are certain that
+    no other server is still accessing the file system.
+
+\fB-c\fR, \fB--createfile\fR #[gGmMkK]
+.br
+\fB-z\fR, \fB--nozero\fR
+    create a file with the specified size on the VMFS file system of the
+    specified SCSI device.  The size is specified in bytes by default,
+    but can be specified in kilobytes, megabytes or gigabytes by adding
+    a suffix of 'k', 'm', or 'g' respectively. The '-z' option disables
+    a security feature with virtual disks that prevents a virtual machine
+    from reading uninitialized sectors. The '-z' option should be used
+    for shared virtual disks in a clustering setup.
+
+\fB-r\fR, \fB--maprawdisk\fR [raw-SCSI-device]
+    Map a raw disk or partition to a file on a VMFS-2 volume. Once the
+    mapping is established, it can be used to access the raw disk like a
+    normal VMFS file. The 'file length' of the mapping is the same as the
+    size of the raw disk/partition that it points to. The mapping can be
+    queried for the raw SCSI device name by using the '-P' option.
+
+\fB-e\fR, \fB--exportfile\fR dstFile
+    exports the contents of the specified VMFS file on the specified
+    SCSI device to a VMware Workstation format virtual disk. The virtual
+    disk may then be transferred to another machine and imported to a
+    SCSI device on the remote machine.  Hence the combination of
+    "exportfile" and "importfile" may be used for copying images of SCSI
+    disks to remote machines. The virtual disk will likely take less space
+    then the full size of the VMFS file, since the virtual disk does not
+    include zeroed sectors of the disk image. When the "exportfile"
+    option is used on a ESX Server REDO log, the exported virtual disk
+    will look as if the REDO log was committed to its base disk. Please
+    note that your source REDO log and base disk will be unchanged. If
+    you want to export the REDO log by itself, you should use the console
+    OS command cp(1).
+
+\fB-i\fR, \fB--importfile\fR srcFile
+    import the contents of a VMware virtual/plain/raw disk in the file
+    system of the console operating system to the specified VMFS file
+    on the specified SCSI device.  This command is often used to
+    import the contents of a VMware Workstation virtual disk into a
+    VMFS file.  It may also be used to import a virtual disk that was
+    created by "exporting" the contents of disk from another VMFS
+    file.  The complete contents of the source disk are copied, even
+    if it is mostly free space, so the destination VMFS file system
+    must have space for the entire size of the virtual disk. If you
+    want to import ESX REDO logs, you should used the console OS
+    command cp(1).
+
+\fB-g\fR, \fB--geometry\fR srcFile
+    get the geometry information (cylinders, heads, sectors) 
+    of a virtual disk. 
+
+\fB-X\fR, \fB--extendfile\fR  #[gGmMkK]
+    extends the specified VMFS file to the specified length.  This
+    command is useful for extending the size of a disk allocated to a
+    virtual machine after the virtual machine has been created.
+    However, this command requires that the guest operating system has
+    some capability for recognizing the new size of the disk and
+    taking advantage of this new size (e.g. by updating the file
+    system on the disk to take advantage of the extra space).
+
+\fB-m\fR, \fB--commit\fR
+    commit the redo log of the specified file, making the associated
+    changes permanent.  The redo log is created when a file is used in
+    "undoable" or "append" mode via a virtual machine.  The name of
+    the redo log is derived by appending ".REDO" to the associated
+    file that contains the base disk image.  The changes to the disk
+    that are stored in the redo log can either be committed using the
+    "commit" option or eliminated by removing the redo file.
+
+\fB-k\fR, \fB--createswapfile\fR #[gGmMkK]
+    create a swap file with the specified size on the VMFS file system
+    of the specified SCSI device.  The size is specified in bytes by
+    default, but can be specified in kilobytes, megabytes or gigabytes
+    by adding a suffix of 'k', 'm' or 'g' respectively.  Note that
+    ESX Server will not start using the swap file until it is 
+    activated. Only root can create a swap file.
+
+\fB-w\fR, \fB--activateswapfile\fR 
+    activate a previously created swap file on the VMFS file system
+    of the specified SCSI device. ESX Server will 
+    immediately start using the swap file after it is activated.
+    Only root can activate a swap file.
+
+\fB-y\fR, \fB--deactivateswapfile\fR fileID
+    deactivate a previously activated swap file on the VMFS file system.
+    The fileID specifies the swap file to deactivate. Users can find
+    the fileID of an activate swap file from the output of 
+    /proc/vmware/swap/stats. Note that swap files can only be deactivated
+    when no virtual machines are active. Only root can deactivate a swap 
+    file.
+
+\fB-s\fR, \fB--scan\fR adapterName
+    scan a specified adapter for devices and/or LUNs.  This option is
+    especially useful for adapters which are connected to storage area
+    networks (SANs).  If a new device or LUN is now accessible via the
+    adapter, then ESX will register this new device or LUN and make it
+    usable for virtual machines.  If an existing device or LUN is not
+    being used and now appears to be gone, it will be removed from the
+    ESX data structures and will no longer be accessible to virtual
+    machines.
+
+\fB-L\fR, \fB--lock\fR  [reserve|release|reset|lunreset]
+    manage SCSI reservations of physical targets or LUNs.  These
+    commands can interrupt the operations of other servers on a storage
+    area network (SAN), so they should be used with great caution.  The
+    "reserve" command will reserve the specified raw disk or the disk
+    containing the specified VMFS file system.  After the reservation,
+    other servers will get a SCSI reservation error if they attempt to
+    access that disk, but the server that did the reservation will be
+    able to access the disk normally.  The "release" command will
+    release the reservation on the specified disk or disk containing the
+    specified VMFS file system.  Other servers will be able to access
+    the disk again.  The "reset" command is used to produce a SCSI reset
+    to the specified disk and causes any reservation held by another
+    server to be released. The "lunreset" command is similar to the
+    "reset" command, but resets a single disk LUN only instead of
+    all the LUNs attached to an ID.
+
+.Sh EXAMPLES
+
+vmkfstools -C vmfs2 -b 2m -n 32 vmhba1:3:0:1
+
+creates a new version 2 file system on the 1st partition of target 3 
+(and lun 0) of vmhba adapter 1.  The file block size is 2 megabytes,
+and the maximum number of files is 32.
+
+
+vmkfstools -Z vmhba0:1:2:4 vmhba1:3:0:1
+
+extends the new logical file system by adding the 4th partition of
+target 1 (and lun 2) of vmhba adapter 0. The extended file system
+supports a maximum of 64 (2*32) files, and spans two partitions -
+vmhba1:3:0:1 and vmhba0:1:2:4. The file system can be addressed
+using the name of its head partition, i.e., vmhba1:3:0:1.
+
+
+vmkfstools -S mydisk vmhba1:3:0:1
+
+assigns the name 'mydisk' to the new file system.
+
+
+vmkfstools -c 2000m /vmfs/mydisk/rh6.2.dsk
+
+create a 2 Gbyte VMFS file with the name of 'rh6.2.dsk' on the VMFS
+file system named 'mydisk'.  This file represents an empty disk, and
+may be accessed by a virtual machine.
+
+
+vmkfstools -i ~/vms/nt4.dsk /vmfs/vmhba0:2:0:0/nt4.dsk
+
+copies the contents of a virtual disk (that contains NT4) from the host
+file system to a file named 'nt4.dsk' on the target 2 of SCSI adapter
+0.  A virtual machine can be configured to use this virtual disk by
+adding lines to its configuration file such as:
+  
+  scsi0.virtualDev = vmxbuslogic
+  scsi0:0.present = TRUE
+  scsi0:0.name = vmhba0:2:0:0:nt4.dsk
+
+
+vmkfstools -l vmhba0:2:0:1
+
+lists the contents of the file system on the 1st partition on
+target 2 of vmhba adapter 0.
+
+
+vmkfstools -s vmhba1
+
+scan adapter vmhba1 for any new targets or LUNs and for any removed
+targets or LUNs.

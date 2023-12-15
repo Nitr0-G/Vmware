@@ -1,0 +1,425 @@
+.\" Copyright 2000 VMware, Inc.  All rights reserved.
+.\"
+.\" Print with groff -mandoc <thisfile> | lpr
+.Dd January 20, 2004
+.Dt mem 8
+.Os "VMware ESX Server" 2.1
+.Sh NAME
+.Nm mem
+.Nd VMware ESX Server memory resource management
+.Sh COPYRIGHT
+.if n VMware ESX Server is Copyright 2000 VMware, Inc.  All rights reserved.
+.if t VMware ESX Server is Copyright 2000 VMware, Inc.  All rights reserved.
+.Sh INTRODUCTION
+VMware ESX Server provides dynamic control over the amount of physical
+memory allocated to each virtual machine (VM).  Memory may be
+\fIovercommitted\fP, so that the total size configured for all running
+VMs exceeds the total amount of available physical memory.  The system
+manages the allocation of memory to VMs automatically based on
+allocation parameters and system load. 
+.Pp
+Initial memory allocation values for a VM may be specified in its
+configuration file.  An administrator may also modify most memory
+allocation parameters dynamically using the web-based VMware
+Management Interface, the Service Console command-line interface, or
+the Perl API.  Reasonable defaults are used automatically when
+parameters are not specified explicitly.  Information about current
+memory allocations and other status is also available via the
+Management Interface, the Service Console procfs interface, and the
+Perl API.
+.Pp
+.Ss Allocation Parameters
+.Pp
+Three basic parameters control the allocation of memory to each VM:
+its minimum size \fImin\fP, its maximum size \fImax\fP, and its
+\fIshares\fP allocation.  The system automatically allocates an amount
+of memory to each VM somewhere between its \fImin\fP and \fImax\fP
+sizes based on its \fIshares\fP and an estimate of its recent working
+set size.
+.Pp
+The \fImax\fP size is the amount of memory configured for use
+by the guest OS running in the VM.  This maximum size must be be
+specified in the configuration file for the VM.  By default, VMs
+operate at their maximum allocation, unless memory is overcommitted.
+.Pp
+The \fImin\fP size is a guaranteed lower bound on the amount of memory
+that will be allocated to the VM, even when memory is overcommitted.
+The system uses an admission control policy to enforce this guarantee.
+A new VM will not be permitted to power on if there is insufficient
+memory to reserve its \fImin\fP size.
+.Pp
+Memory \fIshares\fP entitle a VM to a fraction of physical memory.
+For example, a VM that has twice as many shares as another is
+generally entitled to consume twice as much memory, subject to their
+respective \fImin\fP and \fImax\fP constraints, provided that they
+are both actively using the memory they have been allocated.
+.Pp
+.Ss Admission Control
+.Pp
+VMware ESX Server uses an admission control policy to ensure that
+sufficient unreserved memory and swap space is available before
+powering on a VM.  Memory must be reserved for the guaranteed
+\fImin\fP size, as well as additional \fIoverhead\fP memory required
+for virtualization; i.e. a total of \fImin + overhead\fP.  The
+overhead memory size is determined automatically; it is typically 54MB
+for a uniprocessor VM (with 1 virtual cpu) and 64MB for a
+multiprocessor VM (with 2 virtual cpus).  Additional overhead memory
+is reserved for VMs larger than 512MB.  Swap space must be reserved for
+the remaining VM memory; i.e. \fImax - min\fP.  This swap reservation
+is required to ensure the system is able to preserve VM memory under
+any circumstances; in practice, only a small fraction may actually
+be used.  Similarly, while memory reservations are used for
+admission control, actual memory allocations
+vary dynamically, and unused reservations are not wasted.
+.Pp
+The amount of swap space configured for the system limits the maximum
+level of overcommitment. A total of 8 swap files each with a maximum
+size of 64GB are supported. A default swap file with size equal to
+physical memory size is recommended in order to support a reasonable
+2\fIx\fP level of memory overcommitment.  Larger or smaller swap files
+may be configured.  If no swap file is configured, memory may not be
+overcommitted.  The swap files may be configured using the Management
+Interface, or alternatively from the Service Console vmkfstools(1)
+command-line program. These swap files can be configured even while
+the system is running.
+.Pp
+.Ss Dynamic Allocation
+.Pp
+VMs are allocated their \fImax\fP memory size unless memory is
+overcommitted.  When memory is overcommitted, each VM will be
+allocated an amount of memory somewhere between its \fImin\fP and
+\fImax\fP sizes.  The amount of memory granted to a VM above its
+\fImin\fP size may vary with the current memory load.  The system
+automatically determines allocations for each VM based on two factors:
+the number of \fIshares\fP it has been given and an estimate of its
+recent working set size.
+.Pp
+VMware ESX Server uses a modified proportional-share memory allocation
+policy.  Memory \fIshares\fP entitle a VM to a fraction of physical
+memory.  For example, a VM that has twice as many shares as another is
+entitled to consume twice as much memory, subject to their respective
+\fImin\fP and \fImax\fP constraints, provided that they are both
+actively using the memory they have been allocated.  In general, a VM
+with \fIS\fP memory shares in a system with an overall total of
+\fIT\fP shares is entitled to receive at least a fraction \fIS / T\fP
+of physical memory.
+.Pp
+However, VMs that are not actively using their currently-allocated
+memory will automatically have their effective number of shares
+reduced, in order to prevent VMs from unproductively hoarding idle
+memory.  This is achieved by levying a \fItax\fP on idle memory; a VM
+is charged more for an idle page than for one that it is actively
+using.  The \fIMemIdleTax\fP configuration option provides explicit
+control over the policy for reclaiming idle memory.  A tax rate of
+\fIx\fP% means that up to \fIx\fP% of a VM's idle memory may be
+reclaimed.  A low tax rate will mostly ignore working sets and
+allocate memory based on \fIshares\fP.  A high tax rate will allow
+most idle memory to be reallocated away from VMs that are
+unproductively hoarding it, regardless of \fIshares\fP.
+.Pp
+VMware ESX Server estimates the working set for a VM automatically by
+monitoring memory activity over successive periods of VM virtual time.
+Estimates are smoothed over several periods using techniques that
+respond rapidly to increases in working set size, and more slowly to
+decreases in working set size.  This approach ensures that a VM from
+which idle memory has been reclaimed will be able to ramp up quickly
+to its full share-based allocation once it starts using its memory
+more actively.  The default monitoring period may be modified via
+the \fIMemSamplePeriod\fP configuration option.
+.Pp
+.Ss Memory Reclamation
+.Pp
+VMware ESX Server employs two distinct techniques for dynamically
+expanding or contracting the amount of memory allocated to VMs: a
+VMware-supplied \fIvmmemctl\fP module that is loaded into the guest OS
+running in a VM, and swapping pages from a VM to a server swap file
+without any involvment by the guest OS.
+.Pp
+The preferred mechanism is the \fIvmmemctl\fP driver, which cooperates
+with the server to reclaim those pages that are considered least
+valuable by the guest operating system.  This proprietary technique
+provides predictable performance that closely matches the behavior of
+a native system under similar memory constraints.  It effectively
+increases or decreases memory pressure on the guest OS, causing the
+guest to invoke its own native memory management algorithms.  When
+memory is tight, the guest OS decides which particular pages to
+reclaim, and if necessary, swaps them to its own virtual disk.  The
+guest OS must be configured with sufficient swap space.  Some guest
+operating systems may have additional limitations; see the CAVEATS
+section below for details.  If necessary, the amount of memory
+reclaimed using \fIvmmemctl\fP can be limited via the
+\fIsched.mem.maxmemctl\fP configuration file option.
+.Pp
+Swapping is used to forcibly reclaim memory from a VM when no
+\fIvmmemctl\fP driver is available.  This may be the case if the
+\fIvmmemctl\fP driver was never installed, has been explicitly
+disabled, is not running (e.g., while the guest OS is booting), or is
+temporarily unable to reclaim memory quickly enough to satisfy current
+system demands.  Standard demand paging techniques fault in swapped
+pages as they are accessed by the VM.
+.Pp
+The \fIvmmemctl\fP approach is used whenever possible for optimum
+performance.  Swapping is a reliable mechanism of last resort that the
+system uses to reclaim memory only when necessary.
+.Pp
+.Ss Memory Sharing
+.Pp
+Many VMware ESX Server workloads present opportunities for sharing
+memory across virtual machines.  For example, several VMs may be
+running instances of the same guest OS, have the same applications or
+components loaded, or contain common data.  In such cases, VMware ESX
+Server uses a proprietary \fItransparent page sharing\fP technique to
+securely eliminate redundant copies of memory pages.  With memory
+sharing, a workload running as VMs often consumes less memory than it
+would when running on physical machines.  As a result, higher levels
+of overcommitment can be supported efficiently.
+.Pp
+The VMware ESX Server approach does not require any guest OS
+cooperation.  The \fIMemShareScanVM\fP and \fIMemShareScanTotal\fP
+configuration options may be used to control the rate at which the
+system scans memory for sharing opportunities.
+.Pp
+.Sh DESCRIPTION
+.Pp
+.Ss VM Configuration File Options
+.Pp
+.Bl -tag -width xxxx
+.It Pa memsize = size
+This configuration file option specifies the maximum VM size 
+to be \fIsize\fP megabytes (MB).
+.Pp
+.It Pa sched.mem.minsize = size
+This configuration file option specifies the guaranteed minimum VM
+size to be \fIsize\fP MB.  The maximum valid value for \fIsize\fP is
+100% of the specified maximum VM size.  The minimum valid value for
+\fIsize\fP depends on the amount of available swap space.
+The default minimum \fIsize\fP is 50% of the specified maximum VM size.
+.Pp
+.It Pa sched.mem.shares = n
+This configuration file option specifies the initial memory share
+allocation for a VM to be \fIn\fP shares.  The valid range of 
+numeric values for \fIn\fP is 0 to 100000, enabling a large range of
+allocation ratios.  The special named values \fIlow\fP, \fInormal\fP,
+and \fIhigh\fP may also be used.  These named values are converted
+into numbers automatically, using the configurable ESX Server options
+\fIMemSharesPerMBLow\fP, \fIMemSharesPerMBNormal\fP, and
+\fIMemSharesPerMBHigh\fP, described below.  The default allocation is
+\fInormal\fP, which by default specifies a number of shares equal to
+10 times the VM's maximum size in MB.
+.Pp
+.It Pa sched.mem.maxmemctl = size
+This configuration file option specifies the maximum amount of memory
+that may be reclaimed from the VM using \fIvmmemctl\fP to be
+\fIsize\fP megabytes (MB).  If additional memory needs to be
+reclaimed, the system will swap instead of using \fIvmmemctl\fP.  The
+default maximum \fIsize\fP is half of the specified maximum VM size.
+.El
+.Pp
+.Ss Service Console Interface
+.Pp
+.Bl -tag -width xxxx
+.It Pa /proc/vmware/vm/id/mem/min
+Reading from this file reports the minimum memory size in MB for the
+VM identified by \fIid\fP.
+.Pp
+Writing a number \fIsize\fP to this file changes the minimum memory
+size for the VM identified by \fIid\fP to \fIsize\fP MB.
+.Pp
+.It Pa /proc/vmware/vm/id/mem/shares
+Reading from this file reports the number of memory shares allocated
+to the VM identified by \fIid\fP.
+.Pp
+Writing a number \fIn\fP to this file changes the number of memory
+shares allocated to the VM identified by \fIid\fP to \fIn\fP.  The
+valid range of numeric values for \fIn\fP is 0 to 100000.  Note that a
+value of zero shares will cause the VM memory size allocation to be
+exactly equal to its specified \fImin\fP size, even if excess memory
+is available.  The special named values \fIlow\fP, \fInormal\fP, and
+\fIhigh\fP may also be used.  These named values are converted into
+numbers automatically, using the configurable ESX Server options
+\fIMemSharesPerMBLow\fP, \fIMemSharesPerMBNormal\fP, and
+\fIMemSharesPerMBHigh\fP, described below.
+.Pp
+.It Pa /proc/vmware/vm/id/mem/status
+Reading from this file reports current status information for the VM
+identified by \fIid\fP, including the specified shares, minimum size,
+and maximum size parameters, as well as the VM name, current status,
+whether the VM is currently waiting for memory to be reserved, current
+memory usage, current target size, memory overhead for virtualization,
+and the amount of allocated memory actively in use.  All memory sizes
+are reported in kilobytes (KB).
+.Pp
+.It Pa /proc/vmware/sched/mem
+Reading from this file reports the memory status information for all
+non-system VMs in the entire system, as well as several aggregate
+totals.
+.Pp
+Writing the string "\fIrealloc\fP" to this file causes an immediate
+memory reallocation.  Memory is normally reallocated periodically
+based every \fIMemBalancePeriod\fP seconds.  Reallocations are also
+triggered by significant changes in the amount of free memory.
+.Pp
+.It Pa /proc/vmware/mem
+Reading from this file reports the maximum size with which a new VM
+can be powered on, admission control status including the amount of
+unreserved memory and unreserved swap space, and the current amount of
+free memory in the system.
+.Pp
+.It Pa /proc/vmware/pshare/status
+Reading from this file reports various detailed statistics about
+the current status of transparent page sharing.
+.Pp
+.It Pa /proc/vmware/swap/stats
+Reading from this file reports various detailed swap statistics.
+.Pp
+.It Pa /proc/vmware/config/Mem/SharesPerMBLow
+VMware ESX Server option used to convert the special named shares
+value \fIlow\fP into a number, expressed in shares per MB of
+the VM's maximum size.  Defaults to 5.
+.Pp
+.It Pa /proc/vmware/config/Mem/SharesPerMBNormal
+VMware ESX Server option used to convert the special named shares
+value \fInormal\fP into a number, expressed in shares per MB of
+the VM's maximum size.  Defaults to 10.
+.Pp
+.It Pa /proc/vmware/config/Mem/SharesPerMBHigh
+VMware ESX Server option used to convert the special named shares
+value \fIhigh\fP into a number, expressed in shares per MB of
+the VM's maximum size.  Defaults to 20.
+.Pp
+.It Pa /proc/vmware/config/Mem/BalancePeriod
+VMware ESX Server option that specifies the periodic time interval, in
+seconds, for automatic memory reallocations.  Reallocations are also
+triggered by significant changes in the amount of free memory.
+Defaults to 15 seconds.
+.Pp
+.It Pa /proc/vmware/config/Mem/SamplePeriod
+VMware ESX Server option that specifies the periodic time
+interval, measured in seconds of VM virtual time, over which memory
+activity is monitored in order to estimate working set sizes.
+Defaults to 60 seconds.
+.Pp
+.It Pa /proc/vmware/config/Mem/IdleTax
+VMware ESX Server option that specifies the idle memory tax rate,
+specified as a percentage.  This tax effectively charges VMs more for
+idle memory than for memory that they are actively using.  A tax rate
+of 0% defines an allocation policy that ignores working sets and
+allocates memory strictly based on \fIshares\fP.  A high tax rate will
+result in an allocation policy that allows idle memory to be
+reallocated away from VMs that are unproductively hoarding it.
+Defaults to 75%.
+.Pp
+.It Pa /proc/vmware/config/Mem/ShareScanVM
+VMware ESX Server option that specifies the maximum per-VM rate at
+which memory should be scanned for transparent page sharing
+opportunities.  The rate is specified as the number of pages to scan
+per second.  Defaults to 50 pages/sec.
+.Pp
+.It Pa /proc/vmware/config/Mem/ShareScanTotal
+VMware ESX Server option that specifies the total system-wide rate at
+which memory should be scanned for transparent page sharing
+opportunities.  The rate is specified as the number of pages to scan 
+per second.  Defaults to 200 pages/sec.
+.Pp
+.It Pa /proc/vmware/config/Mem/CtlMaxPercent
+VMware ESX Server option that limits the maximum amount of memory
+that may be reclaimed from any VM using \fIvmmemctl\fP, based on a
+percentage of its \fImax\fP size.  Specifying 0 will effectively
+disable reclamation via \fIvmmemctl\fP for all VMs.  Defaults to 50.
+.Pp
+.It Pa /proc/vmware/config/Mem/CtlMax[OSType]
+VMware ESX Server options that restrict the maximum amount of memory
+that may be reclaimed from a VM using \fIvmmemctl\fP, based on the
+limitations of guest operating system type.  The value is specified in
+megabytes.  Defaults to 128 for \fIOSType\fP=NT4 (Windows NT 4.0),
+2048 for \fIOSType\fP=NT5 (Windows 2000 or Windows 2003), 768 for
+\fIOSType\fP=Linux, and 256 for \fIOSType\fP=BSD.
+.El
+.Pp
+.Sh EXAMPLES
+.Pp
+.Ss Memory Statistics
+.Pp
+The current memory statistics for a virtual machine can be
+read from its the corresponding status file.  For example, 
+to view the statistics for the VM with id 103:
+.Pp
+.nf
+.if t .ft CW
+  % cat /proc/vmware/vm/103/mem/status
+     vm mctl? wait shares     min     max    size/sizetgt
+    103 yes   no     2560  131072  262144  217300/ 217300
+.Pp     
+    memctl/mctltgt swapped/swaptgt  shared  active  overhd/ovhdmax
+     39168/  39168    5672/   5672   38164  191756   14508/  32768
+.if t .ft P
+.fi
+.Pp
+The output above is shown with additional line breaks, in
+order to avoid wrapping long lines.  All memory sizes are reported in
+kilobytes (KB); 1 megabyte (MB) = 1024KB.  The columns indicate:
+.Pp
+.Bl -tag -compact -width mctltgt -offset xxxx
+.It Pa vm
+virtual machine identifier
+.It Pa mctl?
+\fIvmmemctl\fP driver active?
+.It Pa wait
+blocked in a memory wait state?
+.It Pa shares
+memory shares associated with VM
+.It Pa min
+minimum size
+.It Pa max
+maximum size
+.It Pa size
+current size
+.It Pa sizetgt
+target size
+.It Pa memctl
+currently reclaimed using \fIvmmemctl\fP
+.It Pa mctltgt
+target to reclaim using \fIvmmemctl\fP
+.It Pa swapped
+currently swapped to vmfs swap file
+.It Pa swaptgt
+target to swap to vmfs swap file
+.It Pa shared
+memory shared via transparent page sharing
+.It Pa active
+current working set estimate
+.It Pa overhd
+current overhead memory size
+.It Pa ovhdmax
+maximum overhead memory size
+.El
+.Pp
+In this example, VM 103 is running the \fIvmmemctl\fP driver, and is
+not currently blocked waiting for memory.  The VM is configured to use
+between 128MB and 256MB, and has been allocated 2560 memory shares.
+It is currently allocated about 212MB.  Approximately 44MB has been
+reclaimed for use by other VMs: 38MB via \fIvmmemctl\fP, and nearly
+6MB via swapping to the ESX server swap file.  Of the 212MB allocated
+to the VM, more than 37MB is shared, e.g. with other VMs.  The
+current working set estimate for the VM is approximately 187MB. 
+About 14MB of overhead memory is currently being used for
+virtualization, out of a maximum of 32MB.
+.Pp
+.Sh CAVEATS
+VMware supplies \fIvmmemctl\fP drivers for Windows (NT, 2000, 2003, XP),
+Linux, and FreeBSD.  The \fIvmmemctl\fP driver is installed
+automatically during the VMware guest OS tools installation.  The
+system will use swapping to reclaim memory from VMs running other
+guest operating systems, and from VMs that do not install the tools.
+.Pp
+The maximum amount of memory that the system may attempt to reclaim
+using \fIvmmemctl\fP is restricted automatically based on known
+limitations of the guest OS type.  Older versions of the
+\fIvmmemctl\fP driver do not support this feature; the driver should
+be upgraded to the current version.  Alternatively, the configuration
+file option \fIsched.mem.maxmemctl\fP may be specified manually.  See
+the description of the VMware ESX Server option
+\fIMemCtlMax[OSType]\fP for appropriate limits.
+.Pp
+.Sh SEE ALSO
+cpu(8), numa(8), diskbw(8), vmkfstools(1)

@@ -1,0 +1,94 @@
+.\" Copyright 2000 VMware, Inc.  All rights reserved.
+.\"
+.\" Print with groff -mandoc <thisfile> | lpr
+.Dd May 30, 2003
+.Dt nfshaper 8
+.Os "VMware ESX Server" 2.0
+.Sh NAME
+.Nm nfshaper
+.Nd VMware ESX Server traffic shaper 
+.Sh COPYRIGHT
+.if n VMware ESX Server is Copyright 2000 VMware, Inc.  All rights reserved.
+.if t VMware ESX Server is Copyright 2000 VMware, Inc.  All rights reserved.
+.Sh INTRODUCTION
+VMware ESX Server supports a loadable 
+.Nm nfshaper
+module for network traffic shaping, implemented as a general VMware
+network filter.  The shaper implements a two-bucket
+composite traffic shaping algorithm.  A first token bucket controls
+sustained average bandwidth and burstiness.  A second token bucket
+controls peak bandwidth during bursts.
+.Pp
+The procfs interface described in filters(5) is used to attach an
+.Nm nfshaper
+instance to a virtual machine (VM), detach an
+.Nm nfshaper
+instance from a VM, query the status of an
+.Nm nfshaper
+instance, or issue a dynamic command to an active
+.Nm nfshaper
+instance.
+.Sh COMMANDS
+.Bl -tag -width xxxx
+.It Pa config bpsAverage bpsPeak burstSize [periodPeak]
+Dynamically reconfigure the shaper to use the specified parameters:
+average bandwidth of \fIbpsAverage\fP bits per second, peak bandwidth
+of \fIbpsPeak\fP bits per second, maximum burst size of
+\fIburstSize\fP bytes, and an optional peak bandwidth enforcement 
+period \fIperiodPeak\fP in milliseconds.  Each parameter may optionally
+use the suffix \fIk\fP (1\fIk\fP = 1000) or \fIm\fP (1\fIm\fP = 1000k).
+.Pp
+.It Pa maxq nPackets
+Dynamically set the maximum number of queued packets to \fInPackets\fP.
+.Pp
+.It Pa reset
+Dynamically reset shaper statistics.
+.Pp
+.El
+.Pp
+.Sh EXAMPLES
+Suppose that we want to attach a traffic shaper to limit the transmit
+bandwidth of the virtual machine with VM id 104.  To create and
+attach a new shaper instance we issue an \fIxmitpush\fP command as
+described in filters(5).  Note that root privileges are required
+to attach a filter:
+.Pp
+.nf
+    # echo "104 nfshaper 1m 2m 160k" > /proc/vmware/filters/xmitpush
+.fi
+.Pp
+To find the number of the attached nfshaper instance, query
+the network filtering status, which contains a list of all filters 
+attached to VMs:
+.Pp
+.nf
+    % cat /proc/vmware/filters/status
+.fi
+.Pp
+Suppose the reported status information indicates that the filter
+attached to VM 104 is \fInfshaper.2.104\fP.  The procfs node for
+this filter can be used to obtain status information:
+.Pp
+.nf
+    % cat /proc/vmware/filters/xmit/nfshaper.2.104
+.fi
+.Pp
+The same procfs node can also be used to issue commands supported
+by the nfshaper class.  For example, you can dynamically adjust
+the bandwidth limits by issuing a \fIconfig\fP command:
+.Pp
+.nf
+    # echo "config 128k 256k 20k" > /proc/vmware/filters/xmit/nfshaper.2.104
+.fi
+.Pp
+When a VM is terminated, all attached network filters are automatically
+removed and destroyed.  To manually remove a shaper instance we can
+issue an \fIxmitpop\fP command as described in filters(5).  Note that
+root privileges are required to detach a filter:
+.Pp
+.nf
+    # echo "104" > /proc/vmware/filters/xmitpop
+.fi
+.Pp
+.Sh SEE ALSO
+filters(5), vmkload_mod(1)

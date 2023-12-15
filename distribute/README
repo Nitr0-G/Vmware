@@ -1,0 +1,27 @@
+Included is the source for the following packages:
+
+1) vmnix kernel (linux/)
+  Modified linux v2.4.9 kernel
+
+2) VMware ESX Server installer (installer/)
+  Modified version of anaconda-7.2
+
+3) vmklinux
+  Based on 2.2 and 2.4 linux kernel code
+
+4) vmkload_mod
+  Based on insmod source from the modutils package
+
+5) rrdtool-1.0.40 and wu-ftpd-2.6.1 (COSApps)
+  Tools included with the VMware ESX Service Console
+
+6) esxtop
+  Based on the source for 'top' from the procps package
+
+You must be running redhat 7.2, with gcc 2.96 installed to compile
+these packages.  See README files located in the subdirectories for
+descriptions and compilation instructions.
+
+Unless explicitly stated otherwise, all of the files in this package are
+distributed under the GNU General Public License - see the accompanying
+COPYING file for more details.
